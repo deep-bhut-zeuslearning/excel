@@ -136,25 +136,29 @@ export default class Canvas {
      * Updates canvas size to match container
      */
     private updateCanvasSize(): void {
+        // Use clientWidth and clientHeight to exclude scrollbars
+        this._viewportWidth = this._wrapper.clientWidth;
+        this._viewportHeight = this._wrapper.clientHeight;
+        
+        // Get bounding rect for positioning
         const rect = this._wrapper.getBoundingClientRect();
-        this._viewportWidth = rect.width;
-        this._viewportHeight = rect.height;
-        
-        // Set canvas dimensions to match the wrapper exactly
-        this._canvas.width = this._viewportWidth;
-        this._canvas.height = this._viewportHeight;
-        
-        // Position canvas to overlay the wrapper exactly
+
+        // Set canvas style dimensions
         this._canvas.style.width = this._viewportWidth + 'px';
         this._canvas.style.height = this._viewportHeight + 'px';
+
+        // Position canvas to overlay the wrapper content area
+        // This uses rect.left and rect.top which is fine for fixed positioning
+        // relative to the viewport, assuming the wrapper itself is positioned correctly.
         this._canvas.style.left = rect.left + 'px';
         this._canvas.style.top = rect.top + 'px';
         
-        // Apply high DPI scaling if needed
+        // Set canvas rendering dimensions (consider DPR)
         const dpr = window.devicePixelRatio || 1;
+        this._canvas.width = this._viewportWidth * dpr;
+        this._canvas.height = this._viewportHeight * dpr;
+
         if (dpr > 1) {
-            this._canvas.width = this._viewportWidth * dpr;
-            this._canvas.height = this._viewportHeight * dpr;
             this._ctx.scale(dpr, dpr);
         }
     }
@@ -334,7 +338,7 @@ export default class Canvas {
                 ? x - this._resizeState.startX 
                 : y - this._resizeState.startY;
             
-            const newSize = Math.max(20, this._resizeState.originalSize + delta);
+            const newSize = Math.max(40, this._resizeState.originalSize + delta);
             
             if (this._resizeState.type === 'column') {
                 this._dataManager.columns[this._resizeState.index].width = newSize;
@@ -671,11 +675,9 @@ export default class Canvas {
                     this._ctx.rect(x + 2, y + 2, colWidth - 4, rowHeight - 4);
                     this._ctx.clip();
                     
-                    // Determine text alignment based on content
-                    const isNumeric = !isNaN(parseFloat(value)) && isFinite(parseFloat(value));
-                    this._ctx.textAlign = isNumeric ? 'right' : 'left';
+                    this._ctx.textAlign = 'left';
                     
-                    const textX = isNumeric ? x + colWidth - 4 : x + 4;
+                    const textX = x + 4; // Adjusted for left alignment
                     const textY = y + rowHeight / 2;
                     
                     this._ctx.fillText(value, textX, textY);
