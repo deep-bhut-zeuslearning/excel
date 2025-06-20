@@ -19,7 +19,7 @@ export default class Column {
     private readonly _minWidth: number = 40;
     
     /** @type {number} The maximum allowed width for this column */
-    private readonly _maxWidth: number = 500;
+    private readonly _maxWidth: number = 2000;
 
     /**
      * Initializes a new Column instance
