@@ -40,6 +40,15 @@ export default class Canvas {
     
     /** @type {number} Current vertical scroll position */
     private _scrollY: number = 0;
+
+    /** @type {'left' | 'center' | 'right' | null} Current horizontal alignment */
+    private _horizontalAlignment: 'left' | 'center' | 'right' | null = null;
+    
+    /** @type {'top' | 'middle' | 'bottom' | null} Current vertical alignment */
+    private _verticalAlignment: 'top' | 'middle' | 'bottom' | null = null;
+
+    /** @type {number} Current font size */
+    fontSize: number = 14;
     
     /** @type {object} Cache of visible cell range for performance */
     private _visibleRange = {
@@ -67,6 +76,12 @@ export default class Canvas {
         originalSize: number;
     } | null = null;
 
+    /** @type {boolean} Whether a drag selection is in progress */
+    private _isDraggingSelection: boolean = false;
+
+    /** @type {{ row: number, col: number} | null} Starting cell of a drag selection */
+    private _dragStartCell: { row: number, col: number } | null = null;
+
     /** @type {number} Current zoom level */
     private _zoomLevel: number = 1;
 
@@ -83,7 +98,7 @@ export default class Canvas {
      * @param {DataManager} dataManager - Data manager instance
      * @param {Selection} selection - Selection manager instance
      */
-    constructor(container: HTMLElement, dataManager: DataManager, selection: Selection) {
+    constructor(container: HTMLElement, dataManager: DataManager, selection: Selection, horizontalAlignment: 'left' | 'center' | 'right' | null, verticalAlignment: 'top' | 'middle' | 'bottom' | null, fontSize: number) {
         this._dataManager = dataManager;
         this._selection = selection;
         
@@ -91,6 +106,10 @@ export default class Canvas {
         this._canvas = document.createElement('canvas');
         this._canvas.id = 'excel-canvas';
         this._ctx = this._canvas.getContext('2d')!;
+
+        this._horizontalAlignment = horizontalAlignment;
+        this._verticalAlignment = verticalAlignment;
+        this.fontSize = fontSize;
         
         // Set up wrapper
         this._wrapper = container;
@@ -360,21 +379,21 @@ export default class Canvas {
         // Handle cell selection
         const cellCoords = this.getCellAtPosition(x, y);
         if (cellCoords) {
+            this._isDraggingSelection = true;
+            this._dragStartCell = { row: cellCoords.row, col: cellCoords.col };
+
             if (event.ctrlKey || event.metaKey) {
-                // Multi-select mode
-                this._selection.multiSelect = true;
+                // Multi-select mode - This might need more complex logic for drag,
+                // for now, we'll treat drag as creating a new primary selection.
+                // To add to selection with Ctrl+Drag, we'd need to store multiple drag ranges.
+                this._selection.multiSelect = true; // Enable multi-select
+                // For now, a new drag always replaces or becomes the active selection
                 this._selection.selectCell(cellCoords.row, cellCoords.col, true);
             } else if (event.shiftKey && this._selection.activeRange) {
-                // Range selection
-                const activeRange = this._selection.activeRange;
-                this._selection.selectRange(
-                    activeRange.startRow, 
-                    activeRange.startCol,
-                    cellCoords.row, 
-                    cellCoords.col
-                );
+                // Extend selection from active range's start to current cell
+                this._selection.extendSelection(cellCoords.row, cellCoords.col);
             } else {
-                // Single cell selection
+                // Single cell selection / start of new drag range
                 this._selection.selectCell(cellCoords.row, cellCoords.col);
             }
             
@@ -382,7 +401,7 @@ export default class Canvas {
         }
         
         // Handle header clicks for column/row selection
-        if (x < this._headerWidth && y >= this._headerHeight) {
+        if (x < this._headerWidth && y >= this._headerHeight && !this._isDraggingSelection) {
             // Row header clicked
             const rowIndex = this.getRowAtY(y);
             if (rowIndex >= 0) {
@@ -426,8 +445,20 @@ export default class Canvas {
             
             this.setupVirtualScrolling();
             this.scheduleRedraw();
+        } else if (this._isDraggingSelection && this._dragStartCell) {
+            const cellCoords = this.getCellAtPosition(x, y);
+            if (cellCoords && this._selection.activeRange) {
+                // Ensure active range is up-to-date with the drag start cell if it's a new selection
+                if (this._selection.activeRange.startRow !== this._dragStartCell.row ||
+                    this._selection.activeRange.startCol !== this._dragStartCell.col) {
+                     // This case should ideally be handled by mousedown creating the initial selection correctly.
+                     // If we are dragging, activeRange should already be set with _dragStartCell as one of its corners.
+                }
+                this._selection.extendSelection(cellCoords.row, cellCoords.col);
+                this.scheduleRedraw();
+            }
         } else {
-            // Update cursor based on position
+            // Update cursor based on position (not dragging or resizing)
             const resizeHandle = this.getResizeHandle(x, y);
             if (resizeHandle) {
                 this._canvas.style.cursor = resizeHandle.type === 'column' ? 'col-resize' : 'row-resize';
@@ -438,13 +469,21 @@ export default class Canvas {
     }
 
     /**
-     * Handles mouse up events to end resize operations
+     * Handles mouse up events to end resize or drag selection operations
      * @param {MouseEvent} event - Mouse event
      */
     private handleMouseUp(event: MouseEvent): void {
         if (this._resizeState) {
             this._resizeState = null;
             this._canvas.style.cursor = 'cell';
+            // Potentially add resize command to undo/redo stack here
+        }
+
+        if (this._isDraggingSelection) {
+            this._isDraggingSelection = false;
+            this._dragStartCell = null;
+            // Selection is already updated by mouseMove, so no specific action here
+            // This is where you might finalize a selection command for undo/redo
         }
     }
 
@@ -803,6 +842,13 @@ export default class Canvas {
         const scaledHeaderWidth = this._headerWidth * this._zoomLevel;
         const scaledHeaderHeight = this._headerHeight * this._zoomLevel;
         
+        // Default font settings
+        const defaultFontSize = 14;
+        const defaultFontFamily = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+        const defaultHAlign = this._horizontalAlignment ?? 'left';
+        const defaultVAlign = this._verticalAlignment ?? 'middle';
+        const cellPadding = 4; // Padding inside cells for text
+
         this._ctx.fillStyle = '#212529';
         this._ctx.font = `${Math.round(14 * this._zoomLevel)}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
         this._ctx.textBaseline = 'middle';
@@ -835,28 +881,51 @@ export default class Canvas {
                 const value = this._dataManager.getCellValue(r, c);
                 
                 if (value) {
-                    const padding = 4 * this._zoomLevel;
-                    const textX = Math.round(currentDrawX + padding);
-                    const textY = Math.round(currentDrawY + rowHeight / 2);
+                    const fontSize = this.fontSize ?? defaultFontSize;
+                    this._ctx.font = `${fontSize}px ${defaultFontFamily}`;
 
-                    // Only draw if text and cell are reasonably sized
-                    if (colWidth > padding * 2 && rowHeight > padding) {
-                        this._ctx.save();
-                        this._ctx.beginPath();
-                        this._ctx.rect(
-                            Math.round(currentDrawX),
-                            Math.round(currentDrawY),
-                            Math.round(colWidth),
-                            Math.round(rowHeight)
-                        );
-                        this._ctx.clip();
-                        this._ctx.fillText(value, textX, textY);
-                        this._ctx.restore();
+                    // Clip text to cell boundaries
+                    // const fontSize = cell?.fontSize ?? defaultFontSize;
+                    const hAlign = cell?.horizontalAlignment ?? defaultHAlign;
+                    const vAlign = cell?.verticalAlignment ?? defaultVAlign;
+                    this._ctx.font = `${fontSize}px ${defaultFontFamily}`;
+
+                    // Clip text to cell boundaries
+                    this._ctx.save();
+                    this._ctx.beginPath();
+                    // Use cellPadding for clipping rect
+                    this._ctx.rect(x + cellPadding / 2, y + cellPadding / 2, colWidth - cellPadding, rowHeight - cellPadding);
+                    this._ctx.clip();
+                    
+                    // Apply horizontal alignment
+                    this._ctx.textAlign = hAlign;
+                    let textX = 0;
+                    if (hAlign === 'left') {
+                        textX = x + cellPadding;
+                    } else if (hAlign === 'center') {
+                        textX = x + colWidth / 2;
+                    } else { // right
+                        textX = x + colWidth - cellPadding;
                     }
+
+                    // Apply vertical alignment
+                    this._ctx.textBaseline = vAlign;
+                    let textY = 0;
+                    if (vAlign === 'top') {
+                        textY = y + cellPadding;
+                    } else if (vAlign === 'middle') {
+                        textY = y + rowHeight / 2;
+                    } else { // bottom
+                        textY = y + rowHeight - cellPadding;
+                    }
+                    
+                    this._ctx.fillText(value, textX, textY);
+                    this._ctx.restore();
                 }
-                currentDrawX += colWidth;
+                
+                x += colWidth;
             }
-            currentDrawY += rowHeight;
+            y += rowHeight;
         }
     }
 

@@ -111,6 +111,54 @@ export default class DataManager {
     }
 
     /**
+     * Sets the horizontal alignment for a specific cell.
+     * @param {number} row - Row index
+     * @param {number} col - Column index
+     * @param {'left' | 'center' | 'right' | null} alignment - Horizontal alignment to set, or null for default.
+     */
+    setCellHorizontalAlignment(row: number, col: number, alignment: 'left' | 'center' | 'right' | null): void {
+        if (row < 0 || row >= this._maxRows || col < 0 || col >= this._maxColumns) {
+            return;
+        }
+        this.ensureCapacity(row + 1, col + 1);
+        const key = this.getCellKey(row, col);
+        let cell = this._cells.get(key);
+        if (!cell) {
+            cell = new Cell(row, col, '');
+        }
+        cell.horizontalAlignment = alignment;
+        if (cell.value === '' && cell.fontSize === null && cell.horizontalAlignment === null && cell.verticalAlignment === null) {
+            this._cells.delete(key);
+        } else {
+            this._cells.set(key, cell);
+        }
+    }
+
+    /**
+     * Sets the vertical alignment for a specific cell.
+     * @param {number} row - Row index
+     * @param {number} col - Column index
+     * @param {'top' | 'middle' | 'bottom' | null} alignment - Vertical alignment to set, or null for default.
+     */
+    setCellVerticalAlignment(row: number, col: number, alignment: 'top' | 'middle' | 'bottom' | null): void {
+        if (row < 0 || row >= this._maxRows || col < 0 || col >= this._maxColumns) {
+            return;
+        }
+        this.ensureCapacity(row + 1, col + 1);
+        const key = this.getCellKey(row, col);
+        let cell = this._cells.get(key);
+        if (!cell) {
+            cell = new Cell(row, col, '');
+        }
+        cell.verticalAlignment = alignment;
+        if (cell.value === '' && cell.fontSize === null && cell.horizontalAlignment === null && cell.verticalAlignment === null) {
+            this._cells.delete(key);
+        } else {
+            this._cells.set(key, cell);
+        }
+    }
+
+    /**
      * Generates a unique key for a cell coordinate
      * @param {number} row - Row index
      * @param {number} col - Column index
@@ -443,6 +491,82 @@ export default class DataManager {
         
         this._rowCount--;
         return true;
+    }
+
+    /**
+     * Deletes a column at the specified index
+     * @param {number} index - Index of the column to delete
+     * @returns {boolean} True if the column was deleted successfully
+     */
+    deleteColumn(index: number): boolean {
+        if (index < 0 || index >= this._columnCount || this._columnCount <= 1) {
+            return false;
+        }
+
+        // Remove cells in the deleted column and shift others left
+        const newCells = new Map<string, Cell>();
+        for (const [key, cell] of this._cells) {
+            const [rowStr, colStr] = key.split(',');
+            const row = parseInt(rowStr);
+            const col = parseInt(colStr);
+
+            if (col === index) {
+                // Skip cells in deleted column
+                continue;
+            } else if (col > index) {
+                const newKey = this.getCellKey(row, col - 1);
+                cell.setCol(col - 1);
+                newCells.set(newKey, cell);
+            } else {
+                newCells.set(key, cell);
+            }
+        }
+        this._cells = newCells;
+
+        // Remove column
+        this._columns.splice(index, 1);
+
+        // Update column indices
+        for (let i = index; i < this._columns.length; i++) {
+            this._columns[i].setIndex(i);
+        }
+
+        this._columnCount--;
+        return true;
+    }
+
+    /**
+     * Sets the font size for a specific cell.
+     * @param {number} row - Row index
+     * @param {number} col - Column index
+     * @param {number | null} fontSize - Font size to set, or null for default.
+     */
+    setCellFontSize(row: number, col: number, fontSize: number | null): void {
+        if (row < 0 || row >= this._maxRows || col < 0 || col >= this._maxColumns) {
+            return;
+        }
+
+        this.ensureCapacity(row + 1, col + 1); // Ensure row/col arrays are large enough
+
+        const key = this.getCellKey(row, col);
+        let cell = this._cells.get(key);
+
+        if (!cell) {
+            // If cell doesn't exist, create it only if a non-default font size is applied
+            // or if we intend to store cells with only custom styles and no value.
+            // For now, let's create it if a font size is being set.
+            cell = new Cell(row, col, '');
+        }
+
+        cell.fontSize = fontSize;
+
+        // Store the cell if it has a value or a non-default font size
+        // If it has no value AND default font size, it can be removed from sparse storage.
+        if (cell.value === '' && cell.fontSize === null) { // Assuming null is default
+            this._cells.delete(key);
+        } else {
+            this._cells.set(key, cell);
+        }
     }
 
     /**

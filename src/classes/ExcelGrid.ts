@@ -42,6 +42,15 @@ export default class ExcelGrid {
     /** @type {HTMLElement} Loading overlay element */
     private _loadingOverlay!: HTMLElement;
 
+    /** @type {number} Current font size */
+    private _fontSize: number = 14;
+
+    /** @type {'left' | 'center' | 'right' | null} Current horizontal alignment */
+    private _horizontalAlignment: 'left' | 'center' | 'right' | null = null;
+
+    /** @type {'top' | 'middle' | 'bottom' | null} Current vertical alignment */        
+    private _verticalAlignment: 'top' | 'middle' | 'bottom' | null = null;
+
     /**
      * Initializes a new ExcelGrid instance
      */
@@ -82,7 +91,7 @@ export default class ExcelGrid {
         this._selection = new Selection(100000, 500);
         
         // Initialize canvas for rendering
-        this._canvas = new Canvas(this._canvasWrapper, this._dataManager, this._selection);
+        this._canvas = new Canvas(this._canvasWrapper, this._dataManager, this._selection, this._horizontalAlignment, this._verticalAlignment, this._fontSize);
         
         // Initialize statistics calculator
         this._statisticsCalculator = new StatisticsCalculator(this._dataManager);
@@ -104,17 +113,51 @@ export default class ExcelGrid {
             <div class="toolbar-separator"></div>
             
             <div class="toolbar-group">
-                <label for="file-input" class="file-input-label">📁 Load JSON</label>
+                <label for="file-input" class="file-input-label">Load JSON</label>
                 <input type="file" id="file-input" class="file-input" accept=".json">
-                <button class="toolbar-button" id="generate-data-btn">🎲 Generate Sample Data</button>
-                <button class="toolbar-button" id="clear-data-btn">🗑️ Clear All</button>
+                <button class="toolbar-button" id="generate-data-btn"> Generate Sample Data</button>
+                <button class="toolbar-button" id="clear-data-btn"> Clear All</button>
             </div>
             
             <div class="toolbar-separator"></div>
             
             <div class="toolbar-group">
-                <button class="toolbar-button" id="select-all-btn">📋 Select All</button>
-                <button class="toolbar-button" id="clear-selection-btn">❌ Clear Selection</button>
+                <button class="toolbar-button" id="select-all-btn"> Select All</button>
+                <button class="toolbar-button" id="clear-selection-btn"> Clear Selection</button>
+            </div>
+
+            <div class="toolbar-separator"></div>
+
+            <div class="toolbar-group">
+                <button class="toolbar-button" id="delete-row-btn" title="Delete Selected Row(s)">Delete Row</button>
+                <button class="toolbar-button" id="delete-col-btn" title="Delete Selected Column(s)">Delete Column</button>
+            </div>
+
+            <div class="toolbar-separator"></div>
+
+            <div class="toolbar-group">
+                <label for="font-size-input" class="toolbar-label">Font Size:</label>
+                <input type="number" id="font-size-input" class="toolbar-input" min="8" max="72" step="1" >
+            </div>
+
+            <div class="toolbar-separator"></div>
+
+            <div class="toolbar-group">
+                <label for="h-align-select" class="toolbar-label">H-Align:</label>
+                <select id="h-align-select" class="toolbar-select">
+                    <option value="">Default</option>
+                    <option value="left">Left</option>
+                    <option value="center">Center</option>
+                    <option value="right">Right</option>
+                </select>
+
+                <label for="v-align-select" class="toolbar-label">V-Align:</label>
+                <select id="v-align-select" class="toolbar-select">
+                    <option value="">Default</option>
+                    <option value="top">Top</option>
+                    <option value="middle">Middle</option>
+                    <option value="bottom">Bottom</option>
+                </select>
             </div>
 
             <div class="toolbar-separator"></div>
@@ -187,6 +230,15 @@ export default class ExcelGrid {
             this._canvas.redraw();
             this.updateStatistics();
         });
+
+        // Delete row/column buttons
+        const deleteRowBtn = document.getElementById('delete-row-btn') as HTMLButtonElement;
+        const deleteColBtn = document.getElementById('delete-col-btn') as HTMLButtonElement;
+
+        deleteRowBtn?.addEventListener('click', () => this.deleteSelectedRows());
+        deleteColBtn?.addEventListener('click', () => this.deleteSelectedColumns());
+
+        
         
         // Find functionality
         const findInput = document.getElementById('find-input') as HTMLInputElement;
@@ -248,7 +300,257 @@ export default class ExcelGrid {
         });
 
         // Update button states periodically
-        setInterval(() => this.updateToolbarState(), 100);
+        // Also update font size input based on selection
+        setInterval(() => {
+            this.updateToolbarState();
+            this.updateFontSizeInput();
+            this.updateAlignmentControls();
+        }, 100);
+
+        // Alignment selects
+        const hAlignSelect = document.getElementById('h-align-select') as HTMLSelectElement;
+        hAlignSelect?.addEventListener('change', (event) => {
+            
+            const newAlign = (event.target as HTMLSelectElement).value as 'left' | 'center' | 'right' | '';
+            this.setSelectedCellsHorizontalAlignment(newAlign === '' ? null : newAlign);
+        });
+
+        const vAlignSelect = document.getElementById('v-align-select') as HTMLSelectElement;
+        vAlignSelect?.addEventListener('change', (event) => {
+            const newAlign = (event.target as HTMLSelectElement).value as 'top' | 'middle' | 'bottom' | '';
+            this.setSelectedCellsVerticalAlignment(newAlign === '' ? null : newAlign);
+        });
+        
+        const fontSizeInput = document.getElementById('font-size-input') as HTMLInputElement;
+        fontSizeInput?.addEventListener('change', (event) => {
+            console.log("niggs");
+            
+            const newSize = parseInt((event.target as HTMLInputElement).value);
+            if (!isNaN(newSize) && newSize >= 8 && newSize <= 72) {
+                this.setSelectedCellsFontSize(newSize);
+            }
+        });
+    }
+    /**
+     * Sets the font size for all currently selected cells.
+     * @param {number | null} size - The font size to set, or null for default.
+     */
+    private setSelectedCellsFontSize(size: number | null): void {
+        console.log("here");
+        
+        const selectedCoords = this._selection.getSelectedCells();
+        if (selectedCoords.length > 0) {
+            selectedCoords.forEach(({row, col}) => {
+                this._dataManager.setCellFontSize(row, col, size);
+            });
+        } else if (this._selection.activeRange) { // Apply to active range if no specific cells selected
+             const ar = this._selection.activeRange;
+             for (let r = ar.startRow; r <= ar.endRow; r++) {
+                for (let c = ar.startCol; c <= ar.endCol; c++) {
+                    this._dataManager.setCellFontSize(r, c, size);
+                }
+            }
+        }
+        this._canvas.redraw();
+        // TODO: Add to CommandManager
+    }
+
+    /**
+     * Sets the vertical alignment for all currently selected cells.
+     * @param {'top' | 'middle' | 'bottom' | null} alignment - The alignment to set.
+     */
+    private setSelectedCellsVerticalAlignment(alignment: 'top' | 'middle' | 'bottom' | null): void {
+        const selectedCoords = this._selection.getSelectedCells();
+        if (selectedCoords.length > 0) {
+            selectedCoords.forEach(({row, col}) => {
+                this._dataManager.setCellVerticalAlignment(row, col, alignment);
+            });
+        } else if (this._selection.activeRange) {
+            const ar = this._selection.activeRange;
+            for (let r = ar.startRow; r <= ar.endRow; r++) {
+                for (let c = ar.startCol; c <= ar.endCol; c++) {
+                    this._dataManager.setCellVerticalAlignment(r, c, alignment);
+                }
+            }
+        }
+        this._canvas.redraw();
+    }
+
+    /**
+     * Sets the horizontal alignment for all currently selected cells.
+     * @param {'left' | 'center' | 'right' | null} alignment - The alignment to set.
+     */
+    private setSelectedCellsHorizontalAlignment(alignment: 'left' | 'center' | 'right' | null): void {
+        const selectedCoords = this._selection.getSelectedCells();
+        if (selectedCoords.length > 0) {
+            selectedCoords.forEach(({row, col}) => {
+                this._dataManager.setCellHorizontalAlignment(row, col, alignment);
+            });
+        } else if (this._selection.activeRange) {
+            const ar = this._selection.activeRange;
+            for (let r = ar.startRow; r <= ar.endRow; r++) {
+                for (let c = ar.startCol; c <= ar.endCol; c++) {
+                    this._dataManager.setCellHorizontalAlignment(r, c, alignment);
+                }
+            }
+        } else {
+            selectedCoords.forEach(({row, col}) => {
+                this._dataManager.setCellHorizontalAlignment(row, col, alignment);
+            });
+        }
+        this._canvas.redraw();
+        // TODO: Add to CommandManager
+    }
+
+    /**
+     * Updates the font size input in the toolbar based on the current selection.
+     */
+    private updateFontSizeInput(): void {
+        const fontSizeInput = document.getElementById('font-size-input') as HTMLInputElement;
+        if (!fontSizeInput) return;
+
+        const activeRange = this._selection.activeRange;
+        if (activeRange && activeRange.isSingleCell()) {
+            const cell = this._dataManager.getCell(activeRange.startRow, activeRange.startCol);
+            const currentSize = cell?.fontSize;
+            this._canvas.fontSize = currentSize ?? 14;
+            if (currentSize !== null && currentSize !== undefined) {
+                fontSizeInput.value = currentSize.toString();
+            } else {
+                fontSizeInput.value = '';
+            }
+        } else {
+            fontSizeInput.value = '';
+        }
+    }
+
+    /**
+     * Updates the alignment select elements in the toolbar based on the current selection.
+     */
+    private updateAlignmentControls(): void {
+        const hAlignSelect = document.getElementById('h-align-select') as HTMLSelectElement;
+        const vAlignSelect = document.getElementById('v-align-select') as HTMLSelectElement;
+        if (!hAlignSelect || !vAlignSelect) return;
+
+        const activeRange = this._selection.activeRange;
+        if (activeRange && activeRange.isSingleCell()) {
+            const cell = this._dataManager.getCell(activeRange.startRow, activeRange.startCol);
+            hAlignSelect.value = cell?.horizontalAlignment ?? '';
+            vAlignSelect.value = cell?.verticalAlignment ?? '';
+        } else {
+            // Multiple cells selected or no selection, set to default/empty value
+            hAlignSelect.value = '';
+            vAlignSelect.value = '';
+        }
+    }
+
+
+    /**
+     * Deletes the selected row(s).
+     * If a full row selection exists, all selected rows are deleted.
+     * Otherwise, the row of the active cell is deleted.
+     */
+    private deleteSelectedRows(): void {
+        const activeRange = this._selection.activeRange;
+        if (!activeRange) return;
+
+        if (!confirm('Are you sure you want to delete the selected row(s)? This action cannot be undone yet.')) {
+            return;
+        }
+
+        // It's safer to delete from the highest index downwards to avoid index shifting issues.
+        let rowsToDelete: number[] = [];
+
+        if (this._selection.ranges.some(r => r.isRowSelection)) {
+            this._selection.ranges.forEach(range => {
+                if (range.isRowSelection) {
+                    for (let i = range.startRow; i <= range.endRow; i++) {
+                        rowsToDelete.push(i);
+                    }
+                }
+            });
+            // Add specific cell selection rows if they are not part of a full row selection
+            this._selection.ranges.forEach(range => {
+                if (!range.isRowSelection && !range.isColumnSelection) {
+                     for (let i = range.startRow; i <= range.endRow; i++) {
+                        rowsToDelete.push(i);
+                    }
+                }
+            });
+        } else {
+            // No full row selection, use active cell's row
+            rowsToDelete.push(activeRange.startRow);
+        }
+
+        // Remove duplicates and sort in descending order
+        rowsToDelete = [...new Set(rowsToDelete)].sort((a, b) => b - a);
+
+        let deleted = false;
+        rowsToDelete.forEach(rowIndex => {
+            if (this._dataManager.deleteRow(rowIndex)) {
+                deleted = true;
+            }
+        });
+
+        if (deleted) {
+            this._selection.clearSelection();
+            this._canvas.redraw(); // Redraw will use new DataManager row/col counts via setupVirtualScrolling
+            this.updateStatistics();
+            // TODO: Add to CommandManager
+        }
+    }
+
+    /**
+     * Deletes the selected column(s).
+     * If a full column selection exists, all selected columns are deleted.
+     * Otherwise, the column of the active cell is deleted.
+     */
+    private deleteSelectedColumns(): void {
+        const activeRange = this._selection.activeRange;
+        if (!activeRange) return;
+
+        if (!confirm('Are you sure you want to delete the selected column(s)? This action cannot be undone yet.')) {
+            return;
+        }
+
+        let colsToDelete: number[] = [];
+
+        if (this._selection.ranges.some(r => r.isColumnSelection)) {
+             this._selection.ranges.forEach(range => {
+                if (range.isColumnSelection) {
+                    for (let i = range.startCol; i <= range.endCol; i++) {
+                        colsToDelete.push(i);
+                    }
+                }
+            });
+            // Add specific cell selection columns if they are not part of a full col selection
+            this._selection.ranges.forEach(range => {
+                if (!range.isColumnSelection && !range.isRowSelection) {
+                     for (let i = range.startCol; i <= range.endCol; i++) {
+                        colsToDelete.push(i);
+                    }
+                }
+            });
+        } else {
+            colsToDelete.push(activeRange.startCol);
+        }
+
+        // Remove duplicates and sort in descending order
+        colsToDelete = [...new Set(colsToDelete)].sort((a, b) => b - a);
+
+        let deleted = false;
+        colsToDelete.forEach(colIndex => {
+            if (this._dataManager.deleteColumn(colIndex)) {
+                deleted = true;
+            }
+        });
+
+        if (deleted) {
+            this._selection.clearSelection();
+            this._canvas.redraw(); // Redraw will use new DataManager row/col counts
+            this.updateStatistics();
+            // TODO: Add to CommandManager
+        }
     }
 
     /**
