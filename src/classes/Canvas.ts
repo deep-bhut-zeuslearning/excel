@@ -24,10 +24,10 @@ export default class Canvas {
     private _wrapper: HTMLElement;
     
     /** @type {number} Height of column headers in pixels */
-    private readonly _headerHeight: number = 30;
+    private readonly _headerHeight: number = 25; // Adjusted for Excel look
     
     /** @type {number} Width of row headers in pixels */
-    private readonly _headerWidth: number = 60;
+    private readonly _headerWidth: number = 50; // Adjusted for Excel look
     
     /** @type {number} Current viewport width */
     private _viewportWidth: number = 0;
@@ -569,8 +569,7 @@ export default class Canvas {
         const columns = this._dataManager.columns;
         const rows = this._dataManager.rows;
         
-        // this._ctx.strokeStyle = '#000000';
-        this._ctx.strokeStyle = '#e0e0e0';
+        this._ctx.strokeStyle = getComputedStyle(this._canvas).getPropertyValue('--excel-cell-border').trim() || '#D0D7DE';
         this._ctx.lineWidth = 1;
         this._ctx.beginPath();
         
@@ -611,14 +610,19 @@ export default class Canvas {
         const columns = this._dataManager.columns;
         const rows = this._dataManager.rows;
         
+        const headerBgColor = getComputedStyle(this._canvas).getPropertyValue('--excel-header-bg').trim() || '#F0F0F0';
+        const headerTextColor = getComputedStyle(this._canvas).getPropertyValue('--excel-header-text').trim() || '#555555';
+        const headerBorderColor = getComputedStyle(this._canvas).getPropertyValue('--excel-header-border').trim() || '#C9C9C9';
+        const selectedHeaderBgColor = '#DDEBF7'; // A light blue, common for Excel header selection
+        const selectedHeaderTextColor = '#2A579A'; // Darker blue for text on selected header
+
         // Header background
-        this._ctx.fillStyle = '#f8f9fa';
+        this._ctx.fillStyle = headerBgColor;
         this._ctx.fillRect(0, 0, this._viewportWidth, this._headerHeight);
         this._ctx.fillRect(0, 0, this._headerWidth, this._viewportHeight);
         
         // Header text style
-        this._ctx.fillStyle = '#495057';
-        this._ctx.font = '12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+        this._ctx.font = "10pt 'Calibri', 'Segoe UI', sans-serif"; // Excel like font
         this._ctx.textAlign = 'center';
         this._ctx.textBaseline = 'middle';
         
@@ -633,12 +637,14 @@ export default class Canvas {
             
             // Highlight if column is selected
             if (this._selection.isColumnSelected(col)) {
-                this._ctx.fillStyle = '#e3f2fd';
+                this._ctx.fillStyle = selectedHeaderBgColor;
                 this._ctx.fillRect(x, 0, width, this._headerHeight);
-                this._ctx.fillStyle = '#495057';
+                this._ctx.fillStyle = selectedHeaderTextColor;
+            } else {
+                this._ctx.fillStyle = headerTextColor;
             }
             
-            this._ctx.strokeStyle = '#dee2e6';
+            this._ctx.strokeStyle = headerBorderColor;
             this._ctx.strokeRect(x, 0, width, this._headerHeight);
             this._ctx.fillText(label, x + width / 2, this._headerHeight / 2);
             
@@ -646,6 +652,8 @@ export default class Canvas {
         }
         
         // Draw row headers
+        // Reset fill style for row headers if not selected
+        this._ctx.fillStyle = headerTextColor;
         const startY = this._headerHeight + 
             rows.slice(0, startRow).reduce((sum, row) => sum + row.height, 0) - this._scrollY;
         
@@ -656,12 +664,14 @@ export default class Canvas {
             
             // Highlight if row is selected
             if (this._selection.isRowSelected(row)) {
-                this._ctx.fillStyle = '#fff3e0';
+                this._ctx.fillStyle = selectedHeaderBgColor;
                 this._ctx.fillRect(0, y, this._headerWidth, height);
-                this._ctx.fillStyle = '#495057';
+                this._ctx.fillStyle = selectedHeaderTextColor;
+            } else {
+                this._ctx.fillStyle = headerTextColor;
             }
             
-            this._ctx.strokeStyle = '#dee2e6';
+            this._ctx.strokeStyle = headerBorderColor;
             this._ctx.strokeRect(0, y, this._headerWidth, height);
             this._ctx.fillText(label, this._headerWidth / 2, y + height / 2);
             
@@ -669,7 +679,9 @@ export default class Canvas {
         }
         
         // Corner cell
-        this._ctx.strokeStyle = '#dee2e6';
+        this._ctx.fillStyle = headerBgColor; // Match header background
+        this._ctx.fillRect(0,0, this._headerWidth, this._headerHeight);
+        this._ctx.strokeStyle = headerBorderColor;
         this._ctx.strokeRect(0, 0, this._headerWidth, this._headerHeight);
     }
 
@@ -686,8 +698,8 @@ export default class Canvas {
         const startY = this._headerHeight + 
             rows.slice(0, startRow).reduce((sum, row) => sum + row.height, 0) - this._scrollY;
         
-        this._ctx.fillStyle = '#212529';
-        this._ctx.font = '14px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+        this._ctx.fillStyle = getComputedStyle(this._canvas).getPropertyValue('--excel-dark-gray-text').trim() || '#333333';
+        this._ctx.font = "11pt 'Calibri', 'Segoe UI', sans-serif"; // Excel like font
         this._ctx.textBaseline = 'middle';
         
         let y = startY;
@@ -736,9 +748,12 @@ export default class Canvas {
         const startY = this._headerHeight + 
             rows.slice(0, startRow).reduce((sum, row) => sum + row.height, 0) - this._scrollY;
         
-        this._ctx.strokeStyle = '#007bff';
-        this._ctx.lineWidth = 2;
-        this._ctx.fillStyle = 'rgba(0, 123, 255, 0.1)';
+        const selectionBorderColor = getComputedStyle(this._canvas).getPropertyValue('--excel-primary-green').trim() || '#107C41';
+        const selectionFillColor = 'rgba(22, 124, 65, 0.1)'; // Light green fill, semi-transparent
+
+        this._ctx.strokeStyle = selectionBorderColor;
+        this._ctx.lineWidth = 2; // Excel active selection border is often thicker
+        this._ctx.fillStyle = selectionFillColor;
         
         let y = startY;
         for (let row = startRow; row < endRow && row < rows.length; row++) {
@@ -895,11 +910,28 @@ export default class Canvas {
         const wrapperRect = this._wrapper.getBoundingClientRect();
         
         // Position the input relative to the wrapper, accounting for scroll
+        // The .cell-input class already defines border, padding. We need to align it precisely.
+        // The cellRect gives the top-left corner and dimensions of the cell *within the canvas drawing area*.
+        // The input field's border will be outside its width/height.
+        // So, position should be cellRect.x, cellRect.y
+        // Width/Height should be cellRect.width, cellRect.height (CSS padding will expand it)
+
+        const inputBorderWidth = 2; // As defined in .cell-input border
+        const inputPadding = 2; // Approximate padding inside input to align text
+
         this._cellInput.style.position = 'absolute';
-        this._cellInput.style.left = (wrapperRect.left + cellRect.x - 5) + 'px';
-        this._cellInput.style.top = (wrapperRect.top + cellRect.y - 7) + 'px';
-        this._cellInput.style.width = cellRect.width + 5 + 'px';
-        this._cellInput.style.height = cellRect.height + 5 + 'px';
+        // Position the input so its content area aligns with the cell's content area.
+        // This means the input's top-left corner (including its border) must be slightly offset.
+        this._cellInput.style.left = (wrapperRect.left + cellRect.x - inputBorderWidth) + 'px';
+        this._cellInput.style.top = (wrapperRect.top + cellRect.y - inputBorderWidth) + 'px';
+
+        // Set width and height so that the *inner* content area of the input matches the cell size.
+        // The CSS for .cell-input should define padding and border.
+        // Effective width = cellRect.width - (2 * inputPadding for text alignment within input)
+        // The actual input element width will be this + padding + border.
+        // Let CSS handle the final size based on content box + padding + border.
+        this._cellInput.style.width = (cellRect.width) + 'px';
+        this._cellInput.style.height = (cellRect.height) + 'px';
         this._cellInput.style.zIndex = '1000';
         
         // Store cell coordinates
@@ -966,12 +998,14 @@ export default class Canvas {
         const cellRect = this.getCellRect(row, col);
         if (cellRect) {
             const wrapperRect = this._wrapper.getBoundingClientRect();
+            const inputBorderWidth = 2; // Matching startCellEdit
     
-            this._cellInput.style.left = (wrapperRect.left + cellRect.x - 5) + 'px';
-            this._cellInput.style.top = (wrapperRect.top + cellRect.y - 7) + 'px';
+            this._cellInput.style.left = (wrapperRect.left + cellRect.x - inputBorderWidth) + 'px';
+            this._cellInput.style.top = (wrapperRect.top + cellRect.y - inputBorderWidth) + 'px';
+            // Width and height are already set and should remain fixed relative to the cell,
+            // only position needs update on scroll.
         }
     }
-    
 
     /**
      * Gets the rectangle for a specific cell relative to the wrapper

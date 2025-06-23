@@ -8,9 +8,40 @@
 html, body {
   height: 100%;
   overflow: hidden;
-  font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, 'Helvetica Neue', Arial, sans-serif;
-  background: #f8f9fa;
-  color: #212529;
+  /* Updated font stack to prioritize Calibri, then Segoe UI */
+  font-family: 'Calibri', 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, 'Helvetica Neue', Arial, sans-serif;
+  background: #f8f9fa; /* Will be overridden by Excel theme */
+  color: #212529; /* Will be overridden by Excel theme */
+}
+
+/* MS Excel Theme Styles */
+:root {
+  --excel-primary-green: #107C41; /* Excel's characteristic green */
+  --excel-dark-green-hover: #0A532B;
+  --excel-light-gray-background: #F3F3F3;
+  --excel-medium-gray-border: #D4D4D4;
+  --excel-dark-gray-text: #333333;
+  --excel-blue-accent: #2A579A;
+  --excel-white: #FFFFFF;
+  --excel-toolbar-bg: var(--excel-white);
+  --excel-statusbar-bg: var(--excel-light-gray-background);
+  --excel-button-bg: #E1E1E1;
+  --excel-button-hover-bg: #CACACA;
+  --excel-button-active-bg: #B3B3B3;
+  --excel-button-border: #C3C3C3;
+  --excel-button-text: var(--excel-dark-gray-text);
+  --excel-cell-border: #D0D7DE;
+  --excel-header-bg: #F0F0F0;
+  --excel-header-text: #555555;
+  --excel-header-border: #C9C9C9;
+  --excel-input-border: #7F7F7F;
+  --excel-input-focus-border: var(--excel-blue-accent);
+}
+
+body {
+  background-color: var(--excel-light-gray-background);
+  color: var(--excel-dark-gray-text);
+  font-size: 11pt; /* Common Excel font size */
 }
 
 /* Main application container */
@@ -18,174 +49,177 @@ html, body {
   height: 100vh;
   display: flex;
   flex-direction: column;
-  background: #ffffff;
+  background: var(--excel-white); /* Main app area background */
 }
 
-/* Toolbar styling with gradient background */
+/* Toolbar styling - to be Excel Ribbon like */
 #toolbar {
-  height: 60px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  border-bottom: 1px solid #e9ecef;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  height: auto; /* Allow content to define height, more flexible for ribbon groups */
+  min-height: 50px; /* Minimum height */
+  background: var(--excel-toolbar-bg);
+  border-bottom: 1px solid var(--excel-medium-gray-border);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
   display: flex;
-  align-items: center;
-  padding: 0 20px;
-  gap: 15px;
+  flex-wrap: wrap; /* Allow groups to wrap */
+  align-items: flex-start; /* Align items to the top for multi-row ribbon */
+  padding: 8px 10px;
+  gap: 8px; /* Gap between groups */
   z-index: 1000;
   position: relative;
 }
 
-/* Toolbar button groups */
+/* Toolbar button groups - simulating ribbon groups */
 .toolbar-group {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 5px; /* Gap between buttons within a group */
+  padding: 5px;
+  border-right: 1px solid var(--excel-medium-gray-border); /* Separator between groups */
+}
+.toolbar-group:last-child {
+  border-right: none;
 }
 
-/* Toolbar buttons with glass morphism effect */
+/* Toolbar buttons - Excel style */
 .toolbar-button {
-  padding: 8px 16px;
-  background: rgba(255, 255, 255, 0.2);
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  border-radius: 8px;
-  color: white;
-  font-size: 14px;
-  font-weight: 500;
+  padding: 6px 10px;
+  background-color: var(--excel-button-bg);
+  border: 1px solid var(--excel-button-border);
+  border-radius: 3px;
+  color: var(--excel-button-text);
+  font-size: 10pt; /* Slightly smaller for toolbar buttons */
   cursor: pointer;
-  transition: all 0.3s ease;
-  backdrop-filter: blur(10px);
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+  white-space: nowrap; /* Prevent button text from wrapping */
 }
 
 .toolbar-button:hover {
-  background: rgba(255, 255, 255, 0.3);
-  transform: translateY(-2px);
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+  background-color: var(--excel-button-hover-bg);
+  border-color: #A0A0A0;
 }
 
 .toolbar-button:active {
-  transform: translateY(-1px);
+  background-color: var(--excel-button-active-bg);
+  transform: translateY(1px); /* Subtle press effect */
 }
 
 .toolbar-button:disabled {
-  opacity: 0.5;
+  opacity: 0.6;
   cursor: not-allowed;
-  transform: none;
+  background-color: var(--excel-button-bg); /* Keep background consistent but use opacity */
+  border-color: var(--excel-button-border);
 }
 
-/* Toolbar separators */
+/* Toolbar separators - more subtle */
 .toolbar-separator {
-  width: 1px;
-  height: 30px;
-  background: rgba(255, 255, 255, 0.3);
-  margin: 0 5px;
+  /* Replaced by border-right on .toolbar-group for a more Excel-like feel */
+  display: none;
 }
 
-/* File input styling */
+/* File input styling - to match button style */
 .file-input {
   display: none;
 }
 
 .file-input-label {
-  display: inline-block;
-  padding: 8px 16px;
-  background: rgba(255, 255, 255, 0.2);
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  border-radius: 8px;
-  color: white;
-  font-size: 14px;
-  font-weight: 500;
+  /* Inherit .toolbar-button styles */
+  padding: 6px 10px;
+  background-color: var(--excel-button-bg);
+  border: 1px solid var(--excel-button-border);
+  border-radius: 3px;
+  color: var(--excel-button-text);
+  font-size: 10pt;
   cursor: pointer;
-  transition: all 0.3s ease;
-  backdrop-filter: blur(10px);
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+  display: inline-block; /* Ensure it behaves like a button */
 }
 
 .file-input-label:hover {
-  background: rgba(255, 255, 255, 0.3);
-  transform: translateY(-2px);
+  background-color: var(--excel-button-hover-bg);
+  border-color: #A0A0A0;
 }
 
-/* Statistics bar */
+/* Statistics bar - Excel Status Bar style */
 #statistics-bar {
-  height: 40px;
-  background: linear-gradient(90deg, #f8f9fa 0%, #e9ecef 100%);
-  border-bottom: 1px solid #dee2e6;
+  height: 28px; /* Typical Excel status bar height */
+  background: var(--excel-statusbar-bg);
+  border-top: 1px solid var(--excel-medium-gray-border); /* Border at the top */
   display: flex;
   align-items: center;
-  padding: 0 20px;
-  font-size: 13px;
-  color: #6c757d;
-  gap: 25px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  padding: 0 15px;
+  font-size: 10pt;
+  color: var(--excel-dark-gray-text);
+  gap: 20px; /* Spacing between stat items */
+  box-shadow: none; /* Remove previous shadow */
 }
 
 .stat-item {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
 }
 
 .stat-label {
-  font-weight: 600;
-  color: #495057;
+  font-weight: normal; /* Excel status bar text is usually not bold */
+  color: var(--excel-dark-gray-text);
 }
 
 .stat-value {
-  color: #007bff;
-  font-weight: 600;
-  font-size: 14px;
+  color: var(--excel-dark-gray-text); /* Values are typically same color */
+  font-weight: normal;
+  font-size: 10pt;
 }
 
-/* Canvas wrapper with custom scrollbars */
+/* Canvas wrapper */
 #canvas-wrapper {
   flex: 1;
   position: relative;
   overflow: auto;
-  background: #ffffff;
-  border: 1px solid #e9ecef;
+  background: var(--excel-white); /* Sheet background */
+  border-top: 1px solid var(--excel-medium-gray-border); /* Border between formula bar (if added) and sheet */
+  border-left: none; /* Excel doesn't typically have a border here if sheet tabs are present */
 }
 
 /* Canvas element */
 #excel-canvas {
   cursor: cell;
   user-select: none;
-  image-rendering: pixelated;
-  image-rendering: -webkit-optimize-contrast;
-  /* background: red; */
+  image-rendering: auto; /* Let browser decide, pixelated might be too harsh for Excel look */
 }
 
-/* Cell input overlay */
+/* Cell input overlay - Excel like editing box */
 .cell-input {
   position: absolute;
-  border: 2px solid #007bff;
-  font-family: 'Segoe UI', Arial, sans-serif;
-  font-size: 14px;
-  padding: 4px 8px;
+  border: 2px solid var(--excel-primary-green); /* Green border like Excel's active cell editor */
+  font-family: 'Calibri', 'Segoe UI', Arial, sans-serif;
+  font-size: 11pt;
+  padding: 2px 4px; /* Adjust padding for Excel feel */
   outline: none;
-  background: white;
-  box-shadow: 0 4px 12px rgba(0, 123, 255, 0.3);
+  background: var(--excel-white);
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.15);
   z-index: 100;
-  border-radius: 3px;
-  transition: box-shadow 0.2s ease;
+  border-radius: 0; /* Excel inputs are sharp */
+  line-height: normal; /* Ensure text aligns well */
 }
 
 .cell-input:focus {
-  box-shadow: 0 0 0 4px rgba(0, 123, 255, 0.15);
+  /* Already has green border, no need for additional focus shadow for Excel look */
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2); /* Slightly more prominent shadow on focus */
 }
 
-/* Loading overlay with backdrop blur */
+/* Loading overlay */
 .loading-overlay {
   position: fixed;
   top: 0;
   left: 0;
   width: 100%;
   height: 100%;
-  background: rgba(255, 255, 255, 0.9);
+  background: rgba(255, 255, 255, 0.8); /* Lighter background */
   display: flex;
   justify-content: center;
   align-items: center;
   z-index: 9999;
-  backdrop-filter: blur(8px);
+  backdrop-filter: blur(4px); /* Softer blur */
 }
 
 .loading-overlay.hidden {
@@ -194,21 +228,21 @@ html, body {
 
 .loading-spinner {
   text-align: center;
-  background: white;
-  padding: 30px;
-  border-radius: 12px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: var(--excel-white);
+  padding: 25px;
+  border-radius: 4px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+  border: 1px solid var(--excel-medium-gray-border);
 }
 
 .spinner {
-  width: 48px;
-  height: 48px;
-  border: 4px solid #f3f3f3;
-  border-top: 4px solid #007bff;
+  width: 36px;
+  height: 36px;
+  border: 3px solid var(--excel-light-gray-background);
+  border-top: 3px solid var(--excel-primary-green); /* Use Excel green for spinner */
   border-radius: 50%;
   animation: spin 1s linear infinite;
-  margin: 0 auto 20px;
+  margin: 0 auto 15px;
 }
 
 @keyframes spin {
@@ -217,92 +251,184 @@ html, body {
 }
 
 .loading-text {
-  font-size: 16px;
-  color: #6c757d;
-  font-weight: 500;
+  font-size: 11pt;
+  color: var(--excel-dark-gray-text);
+  font-weight: normal;
 }
 
 .loading-progress {
-  margin-top: 15px;
-  font-size: 14px;
-  color: #495057;
+  margin-top: 10px;
+  font-size: 10pt;
+  color: var(--excel-dark-gray-text);
 }
 
-/* Custom scrollbar styling */
+/* Custom scrollbar styling - Excel like */
 #canvas-wrapper::-webkit-scrollbar {
-  width: 14px;
-  height: 14px;
+  width: 17px; /* Standard Excel scrollbar width */
+  height: 17px; /* Standard Excel scrollbar height */
 }
 
 #canvas-wrapper::-webkit-scrollbar-track {
-  background: #f1f3f4;
-  border-radius: 8px;
+  background: #EAEAEA; /* Light gray track */
+  border-radius: 0;
 }
 
 #canvas-wrapper::-webkit-scrollbar-thumb {
-  background: linear-gradient(135deg, #667eea, #764ba2);
-  border-radius: 8px;
-  border: 2px solid #f1f3f4;
-  transition: background 0.2s ease;
+  background: #C1C1C1; /* Medium gray thumb */
+  border-radius: 0;
+  border: 1px solid #ADADAD; /* Border around thumb */
 }
 
 #canvas-wrapper::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(135deg, #5a6fd8, #6a4190);
+  background: #A8A8A8; /* Darker gray on hover */
 }
 
 #canvas-wrapper::-webkit-scrollbar-corner {
-  background: #f1f3f4;
+  background: #EAEAEA; /* Match track background */
 }
 
-/* Responsive design adjustments */
+/* Responsive design adjustments - less relevant for desktop Excel look, but good to keep */
 @media (max-width: 768px) {
+  /* Consider if these are still needed or if a fixed layout is preferred for Excel look */
+  /* For now, keeping them but they might be overridden by more specific Excel styles */
   #toolbar {
-    height: 50px;
-    padding: 0 15px;
-    gap: 10px;
+    min-height: 40px;
+    padding: 5px;
+    gap: 5px;
   }
   
   .toolbar-button {
-    padding: 6px 12px;
-    font-size: 13px;
+    padding: 5px 8px;
+    font-size: 9pt;
   }
   
   #statistics-bar {
-    height: 35px;
-    padding: 0 15px;
-    gap: 15px;
-    font-size: 11px;
+    height: 24px;
+    padding: 0 10px;
+    gap: 10px;
+    font-size: 9pt;
   }
   
   #canvas-wrapper::-webkit-scrollbar {
-    width: 10px;
-    height: 10px;
+    width: 12px;
+    height: 12px;
   }
 }
 
-/* Selection styles for better visibility */
+/* Selection styles - Excel like */
 .selection-highlight {
-  background: rgba(0, 123, 255, 0.1);
-  border: 2px solid #007bff;
+  /* This class will be applied by JS to the canvas selection drawing logic */
+  /* For HTML based selection (if any), it would be: */
+  /* background: rgba(26, 115, 232, 0.1); */ /* Light blue fill */
+  /* border: 1px solid var(--excel-primary-green); */ /* Green border for active selection */
 }
 
 .column-selection {
-  background: rgba(40, 167, 69, 0.1);
-  border-top: 2px solid #28a745;
-  border-bottom: 2px solid #28a745;
+  /* background: rgba(26, 115, 232, 0.05); */ /* Very light fill for column header */
+  /* border-top: 1px solid var(--excel-primary-green); */
+  /* border-bottom: 1px solid var(--excel-primary-green); */
 }
 
 .row-selection {
-  background: rgba(255, 193, 7, 0.1);
-  border-left: 2px solid #ffc107;
-  border-right: 2px solid #ffc107;
+  /* background: rgba(26, 115, 232, 0.05); */ /* Very light fill for row header */
+  /* border-left: 1px solid var(--excel-primary-green); */
+  /* border-right: 1px solid var(--excel-primary-green); */
 }
 
-/* Resize cursors */
+/* Resize cursors - standard cursors, usually fine */
 .col-resize {
   cursor: col-resize;
 }
 
 .row-resize {
   cursor: row-resize;
+}
+
+/* Additional Excel specific styles */
+/* Formula Bar */
+#formula-bar {
+  display: flex;
+  align-items: center;
+  padding: 5px 8px; /* Excel has a bit more vertical padding here */
+  background-color: var(--excel-toolbar-bg); /* Match toolbar bg for consistency like Office Online */
+  border-bottom: 1px solid var(--excel-medium-gray-border);
+  min-height: 30px; /* Adjusted height */
+  gap: 5px;
+}
+
+.excel-formula-bar-cell-name {
+  padding: 3px 8px;
+  font-size: 10pt;
+  background-color: var(--excel-light-gray-background);
+  border: 1px solid var(--excel-button-border);
+  border-radius: 2px;
+  min-width: 60px; /* Ensure it has some width */
+  text-align: center;
+  color: var(--excel-dark-gray-text);
+  font-family: 'Calibri', 'Segoe UI', Arial, sans-serif;
+}
+
+.fx-icon {
+  padding: 3px 6px;
+  font-size: 10pt;
+  font-style: italic;
+  font-weight: bold;
+  color: var(--excel-dark-gray-text);
+  border: 1px solid var(--excel-button-border);
+  background-color: var(--excel-button-bg);
+  border-radius: 2px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px; /* Adjust as needed */
+  height: 24px; /* Match input height */
+}
+
+.fx-icon:hover {
+  background-color: var(--excel-button-hover-bg);
+}
+
+.excel-formula-bar-input {
+  flex-grow: 1;
+  border: 1px solid var(--excel-input-border);
+  padding: 4px 6px; /* Slightly more padding */
+  font-family: 'Calibri', 'Segoe UI', Arial, sans-serif;
+  font-size: 11pt;
+  outline: none;
+  border-radius: 1px; /* Subtle rounding */
+  height: 26px; /* Consistent height */
+}
+
+.excel-formula-bar-input:focus {
+  border-color: var(--excel-input-focus-border); /* Use defined focus color */
+  box-shadow: 0 0 0 1px var(--excel-input-focus-border); /* Subtle glow */
+}
+
+
+/* Cell styles (to be applied by canvas drawing logic, but good to define concepts) */
+.excel-cell {
+  border-right: 1px solid var(--excel-cell-border);
+  border-bottom: 1px solid var(--excel-cell-border);
+  padding: 2px 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.excel-header-cell {
+  background-color: var(--excel-header-bg);
+  color: var(--excel-header-text);
+  border-right: 1px solid var(--excel-header-border);
+  border-bottom: 1px solid var(--excel-header-border);
+  font-weight: normal; /* Excel headers are not typically bold by default */
+  text-align: center;
+}
+
+/* Active cell highlight (typically drawn on canvas, but if an overlay is used) */
+.active-cell-highlight {
+  position: absolute;
+  border: 2px solid var(--excel-primary-green);
+  pointer-events: none; /* So it doesn't interfere with mouse events on canvas */
+  z-index: 50; /* Above grid, below cell input */
 }

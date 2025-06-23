@@ -32,6 +32,9 @@ export default class ExcelGrid {
     
     /** @type {HTMLElement} Toolbar container */
     private _toolbar!: HTMLElement;
+
+    /** @type {HTMLElement} Formula bar container */
+    private _formulaBar!: HTMLElement;
     
     /** @type {HTMLElement} Statistics bar container */
     private _statisticsBar!: HTMLElement;
@@ -49,6 +52,7 @@ export default class ExcelGrid {
         this.initializeContainers();
         this.initializeComponents();
         this.setupToolbar();
+        this.setupFormulaBar(); // New call
         this.setupEventListeners();
         this.updateStatistics();
         
@@ -62,12 +66,13 @@ export default class ExcelGrid {
     private initializeContainers(): void {
         this._container = document.getElementById('app')!;
         this._toolbar = document.getElementById('toolbar')!;
+        this._formulaBar = document.getElementById('formula-bar')!; // Added formula bar
         this._statisticsBar = document.getElementById('statistics-bar')!;
         this._canvasWrapper = document.getElementById('canvas-wrapper')!;
         this._loadingOverlay = document.getElementById('loading-overlay')!;
         
-        if (!this._container || !this._toolbar || !this._statisticsBar || !this._canvasWrapper) {
-            throw new Error('Required DOM elements not found');
+        if (!this._container || !this._toolbar || !this._formulaBar || !this._statisticsBar || !this._canvasWrapper || !this._loadingOverlay) {
+            throw new Error('Required DOM elements not found. Ensure app, toolbar, formula-bar, statistics-bar, canvas-wrapper, and loading-overlay exist.');
         }
     }
 
@@ -101,24 +106,87 @@ export default class ExcelGrid {
                 <button class="toolbar-button" id="redo-btn" title="Redo (Ctrl+Y)">↷ Redo</button>
             </div>
             
-            <div class="toolbar-separator"></div>
-            
             <div class="toolbar-group">
-                <label for="file-input" class="file-input-label">📁 Load JSON</label>
+                <label for="file-input" class="file-input-label toolbar-button">📁 Load JSON</label> <!-- Added toolbar-button class for consistent styling -->
                 <input type="file" id="file-input" class="file-input" accept=".json">
                 <button class="toolbar-button" id="generate-data-btn">🎲 Generate Sample Data</button>
                 <button class="toolbar-button" id="clear-data-btn">🗑️ Clear All</button>
             </div>
-            
-            <div class="toolbar-separator"></div>
             
             <div class="toolbar-group">
                 <button class="toolbar-button" id="select-all-btn">📋 Select All</button>
                 <button class="toolbar-button" id="clear-selection-btn">❌ Clear Selection</button>
             </div>
         `;
+        // Note: .toolbar-separator divs were removed as CSS now handles separation via .toolbar-group border-right.
         
         this.setupToolbarEvents();
+    }
+
+    /**
+     * Sets up the formula bar with input fields
+     */
+    private setupFormulaBar(): void {
+        this._formulaBar.innerHTML = `
+            <input type="text" id="active-cell-indicator" class="excel-formula-bar-cell-name" value="A1" readonly title="Active Cell">
+            <div class="fx-icon" title="Insert Function">fx</div>
+            <input type="text" id="formula-input-field" class="excel-formula-bar-input" placeholder="Enter value or formula">
+        `;
+
+        // Event listeners for formula bar components can be added here if needed
+        // For example, linking formula-input-field to cell editing.
+        const formulaInputField = document.getElementById('formula-input-field') as HTMLInputElement;
+        formulaInputField.addEventListener('blur', () => {
+            // Logic to update cell with formula input content
+            // This requires more integration with cell editing and selection
+            // For now, we just log it
+            if (this._selection.getSelectedCells().length === 1) {
+                const { row, col } = this._selection.getSelectedCells()[0];
+                const oldValue = this._dataManager.getCellValue(row, col);
+                const newValue = formulaInputField.value;
+                if (oldValue !== newValue) {
+                    const command = new CellEditCommand(this._dataManager, row, col, oldValue, newValue);
+                    this._commandManager.executeCommand(command);
+                    this._canvas.redraw();
+                    this.updateStatistics();
+                }
+            }
+        });
+
+        // TODO: Link active-cell-indicator and formula-input-field to selection and cell data
+        // This will likely involve observing selection changes and updating these fields.
+        this.updateFormulaBarDisplay(); // Initial update
+    }
+
+    /**
+     * Updates the formula bar display based on the current selection
+     */
+    private updateFormulaBarDisplay(): void {
+        const activeCellIndicator = document.getElementById('active-cell-indicator') as HTMLInputElement;
+        const formulaInputField = document.getElementById('formula-input-field') as HTMLInputElement;
+
+        if (!activeCellIndicator || !formulaInputField) return;
+
+        const selected = this._selection.getSelectedCells(); // Get all selected cells
+        const activeRange = this._selection.activeRange; // Get the primary active range
+
+        if (activeRange) { // If there's any selection
+            const primaryRow = activeRange.startRow;
+            const primaryCol = activeRange.startCol;
+
+            activeCellIndicator.value = this._dataManager.getCellLabel(primaryRow, primaryCol);
+
+            // Only update formula input if it's not focused, to avoid interrupting user typing
+            if (document.activeElement !== formulaInputField) {
+                 // If multiple cells are selected, Excel typically shows the value of the primary active cell.
+                formulaInputField.value = this._dataManager.getCellValue(primaryRow, primaryCol);
+            }
+        } else { // No selection
+            activeCellIndicator.value = "";
+            if (document.activeElement !== formulaInputField) {
+                formulaInputField.value = "";
+            }
+        }
     }
 
     /**
@@ -132,14 +200,14 @@ export default class ExcelGrid {
         undoBtn.addEventListener('click', () => {
             if (this._commandManager.undo()) {
                 this._canvas.redraw();
-                this.updateStatistics();
+                this.updateStatistics(); // This will also call updateFormulaBarDisplay
             }
         });
         
         redoBtn.addEventListener('click', () => {
             if (this._commandManager.redo()) {
                 this._canvas.redraw();
-                this.updateStatistics();
+                this.updateStatistics(); // This will also call updateFormulaBarDisplay
             }
         });
         
@@ -165,13 +233,13 @@ export default class ExcelGrid {
         document.getElementById('select-all-btn')?.addEventListener('click', () => {
             this._selection.selectAll();
             this._canvas.redraw();
-            this.updateStatistics();
+            this.updateStatistics(); // This will also call updateFormulaBarDisplay
         });
         
         document.getElementById('clear-selection-btn')?.addEventListener('click', () => {
             this._selection.clearSelection();
             this._canvas.redraw();
-            this.updateStatistics();
+            this.updateStatistics(); // This will also call updateFormulaBarDisplay
         });
         
         // Update button states periodically
@@ -215,37 +283,46 @@ export default class ExcelGrid {
                             this._commandManager.undo();
                         }
                         this._canvas.redraw();
-                        this.updateStatistics();
+                        this.updateStatistics(); // This will also call updateFormulaBarDisplay
                         event.preventDefault();
                         break;
                     
                     case 'y':
                         this._commandManager.redo();
                         this._canvas.redraw();
-                        this.updateStatistics();
+                        this.updateStatistics(); // This will also call updateFormulaBarDisplay
                         event.preventDefault();
                         break;
                     
                     case 'a':
                         this._selection.selectAll();
                         this._canvas.redraw();
-                        this.updateStatistics();
+                        this.updateStatistics(); // This will also call updateFormulaBarDisplay
                         event.preventDefault();
                         break;
                 }
             }
         });
         
-        // Listen for selection changes to update statistics
-        // Note: In a real implementation, you'd want to use events/observers
-        // For now, we'll update statistics on a timer
-        setInterval(() => this.updateStatistics(), 500);
+        // Listen for selection changes to update statistics and formula bar
+        // Note: In a real implementation, you'd want to use events/observers for selection changes directly.
+        // For now, we'll update statistics and formula bar on a timer, and also after specific actions.
+        // The Selection class could eventually emit an event.
+        setInterval(() => {
+            // This interval primarily catches selection changes made directly via Canvas mouse events
+            // or keyboard navigation that don't explicitly call updateStatistics.
+            this.updateStatistics();
+        }, 250); // Reduced interval for more responsive formula bar updates
     }
 
     /**
      * Updates the statistics bar with current selection information
+     * Also triggers update for the formula bar display.
      */
     private updateStatistics(): void {
+        // Update formula bar first, as it depends on the current selection state
+        this.updateFormulaBarDisplay();
+
         const stats = this._statisticsCalculator.calculateForSelection(this._selection, 100000);
         
         this._statisticsBar.innerHTML = `
