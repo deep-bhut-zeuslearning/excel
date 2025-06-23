@@ -147,9 +147,6 @@ html, body {
 
 /* Canvas element */
 #excel-canvas {
-  position: relative;
-  top: 0;
-  left: 0;
   cursor: cell;
   user-select: none;
   image-rendering: pixelated;

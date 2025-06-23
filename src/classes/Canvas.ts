@@ -134,7 +134,7 @@ export default class Canvas {
 
     /**
      * Updates canvas size to match container
-     */
+    */
     private updateCanvasSize(): void {
         // Use clientWidth and clientHeight to exclude scrollbars
         this._viewportWidth = this._wrapper.clientWidth;
@@ -144,8 +144,8 @@ export default class Canvas {
         const rect = this._wrapper.getBoundingClientRect();
 
         // Set canvas style dimensions
-        this._canvas.style.width = this._viewportWidth + 'px';
-        this._canvas.style.height = this._viewportHeight + 'px';
+        this._canvas.style.width = this._viewportWidth -12 + 'px';
+        this._canvas.style.height = this._viewportHeight - 12 + 'px';
 
         // Position canvas to overlay the wrapper content area
         // This uses rect.left and rect.top which is fine for fixed positioning
@@ -398,28 +398,56 @@ export default class Canvas {
         switch (event.key) {
             case 'ArrowUp':
                 if (activeRange.startRow > 0) {
-                    this._selection.selectCell(activeRange.startRow - 1, activeRange.startCol);
+                    if (event.shiftKey) {
+                        this._selection.extendSelection(
+                            activeRange.startRow - 1,
+                            activeRange.startCol
+                        );
+                    } else {
+                        this._selection.selectCell(activeRange.startRow - 1, activeRange.startCol);
+                    }
                     handled = true;
                 }
                 break;
             
             case 'ArrowDown':
                 if (activeRange.startRow < this._dataManager.rowCount - 1) {
-                    this._selection.selectCell(activeRange.startRow + 1, activeRange.startCol);
+                    if (event.shiftKey) {
+                        this._selection.extendSelection(
+                            activeRange.endRow + 1,
+                            activeRange.startCol
+                        );
+                    } else {
+                        this._selection.selectCell(activeRange.startRow + 1, activeRange.startCol);
+                    }
                     handled = true;
                 }
                 break;
             
             case 'ArrowLeft':
                 if (activeRange.startCol > 0) {
-                    this._selection.selectCell(activeRange.startRow, activeRange.startCol - 1);
+                    if (event.shiftKey) {
+                        this._selection.extendSelection(
+                            activeRange.startRow,
+                            activeRange.startCol - 1
+                        );
+                    } else {
+                        this._selection.selectCell(activeRange.startRow, activeRange.startCol - 1);
+                    }
                     handled = true;
                 }
                 break;
             
             case 'ArrowRight':
                 if (activeRange.startCol < this._dataManager.columnCount - 1) {
-                    this._selection.selectCell(activeRange.startRow, activeRange.startCol + 1);
+                    if (event.shiftKey) {
+                        this._selection.extendSelection(
+                            activeRange.startRow,
+                            activeRange.endCol + 1
+                        );
+                    } else {
+                        this._selection.selectCell(activeRange.startRow, activeRange.startCol + 1);
+                    }
                     handled = true;
                 }
                 break;
@@ -440,6 +468,8 @@ export default class Canvas {
                     this.cancelCellEdit();
                     handled = true;
                 }
+                this._selection.clearSelection();
+                handled = true;
                 break;
         }
         
@@ -539,6 +569,7 @@ export default class Canvas {
         const columns = this._dataManager.columns;
         const rows = this._dataManager.rows;
         
+        // this._ctx.strokeStyle = '#000000';
         this._ctx.strokeStyle = '#e0e0e0';
         this._ctx.lineWidth = 1;
         this._ctx.beginPath();
@@ -860,20 +891,24 @@ export default class Canvas {
         this._cellInput.type = 'text';
         this._cellInput.className = 'cell-input';
         this._cellInput.value = this._dataManager.getCellValue(row, col);
+
+        const wrapperRect = this._wrapper.getBoundingClientRect();
         
         // Position the input relative to the wrapper, accounting for scroll
         this._cellInput.style.position = 'absolute';
-        this._cellInput.style.left = cellRect.x + 'px';
-        this._cellInput.style.top = cellRect.y + 'px';
-        this._cellInput.style.width = cellRect.width + 'px';
-        this._cellInput.style.height = cellRect.height + 'px';
+        this._cellInput.style.left = (wrapperRect.left + cellRect.x - 5) + 'px';
+        this._cellInput.style.top = (wrapperRect.top + cellRect.y - 7) + 'px';
+        this._cellInput.style.width = cellRect.width + 5 + 'px';
+        this._cellInput.style.height = cellRect.height + 5 + 'px';
         this._cellInput.style.zIndex = '1000';
         
         // Store cell coordinates
         this._cellInput.dataset.row = row.toString();
         this._cellInput.dataset.col = col.toString();
         
-        this._wrapper.appendChild(this._cellInput);
+        // this._wrapper.appendChild(this._cellInput);
+        document.body.appendChild(this._cellInput);
+
         this._cellInput.focus();
         this._cellInput.select();
         
@@ -924,16 +959,19 @@ export default class Canvas {
      */
     private updateCellInputPosition(): void {
         if (!this._cellInput) return;
-        
+    
         const row = parseInt(this._cellInput.dataset.row!);
         const col = parseInt(this._cellInput.dataset.col!);
-        
+    
         const cellRect = this.getCellRect(row, col);
         if (cellRect) {
-            this._cellInput.style.left = cellRect.x + 'px';
-            this._cellInput.style.top = cellRect.y + 'px';
+            const wrapperRect = this._wrapper.getBoundingClientRect();
+    
+            this._cellInput.style.left = (wrapperRect.left + cellRect.x - 5) + 'px';
+            this._cellInput.style.top = (wrapperRect.top + cellRect.y - 7) + 'px';
         }
     }
+    
 
     /**
      * Gets the rectangle for a specific cell relative to the wrapper

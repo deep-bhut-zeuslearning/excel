@@ -42,6 +42,14 @@ export default class Column {
     }
 
     /**
+     * Sets the index of this column
+     * @param {number} index - The new index
+     */
+    setIndex(index: number) {
+        this._index = index;
+    }
+
+    /**
      * Gets the current width of this column
      * @returns {number} The width in pixels
      */

@@ -96,6 +96,22 @@ export default class Cell {
     }
 
     /**
+     * Sets the row index of this cell
+     * @param {number} row - The new row index
+     */
+    setRow(row: number) {
+        this._row = row;
+    }
+
+    /**
+     * Sets the column index of this cell
+     * @param {number} col - The new column index
+     */
+    setCol(col: number) {
+        this._col = col;
+    }
+
+    /**
      * Sets the selection state of this cell
      * @param {boolean} selected - Whether the cell should be selected
      */
