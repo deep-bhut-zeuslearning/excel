@@ -2,6 +2,9 @@ import type DataManager from './DataManager';
 import type Selection from './Selection';
 import type Column from './Column';
 import type Row from './Row';
+import type CommandManager from './CommandManager';
+import CellEditCommand from './CellEditCommand';
+import ResizeCommand from './ResizeCommand';
 
 /**
  * Manages the HTML5 Canvas rendering for the Excel grid
@@ -19,6 +22,9 @@ export default class Canvas {
     
     /** @type {Selection} Reference to the selection manager */
     private _selection: Selection;
+
+    /** @type {CommandManager} Reference to the command manager */
+    private _commandManager: CommandManager;
     
     /** @type {HTMLElement} The canvas wrapper element */
     private _wrapper: HTMLElement;
@@ -97,10 +103,12 @@ export default class Canvas {
      * @param {HTMLElement} container - Container element for the canvas
      * @param {DataManager} dataManager - Data manager instance
      * @param {Selection} selection - Selection manager instance
+     * @param {CommandManager} commandManager - Command manager instance
      */
-    constructor(container: HTMLElement, dataManager: DataManager, selection: Selection) {
+    constructor(container: HTMLElement, dataManager: DataManager, selection: Selection, commandManager: CommandManager) {
         this._dataManager = dataManager;
         this._selection = selection;
+        this._commandManager = commandManager;
         
         // Create canvas element
         this._canvas = document.createElement('canvas');
@@ -470,9 +478,47 @@ export default class Canvas {
      */
     private handleMouseUp(event: MouseEvent): void {
         if (this._resizeState) {
+            const { type, index, originalSize } = this._resizeState;
+            let target: Column | Row;
+            let currentSize: number;
+
+            if (type === 'column') {
+                target = this._dataManager.columns[index];
+                currentSize = target.width;
+                if (Math.abs(currentSize - originalSize) > 0.1) { // Check if size actually changed (floating point)
+                    // Temporarily revert to original size for correct oldSize capture by command
+                    target.width = originalSize;
+                    const command = new ResizeCommand(target, currentSize);
+                    this._commandManager.executeCommand(command);
+                } else {
+                    // If no significant change, ensure it's reset to originalSize precisely
+                    target.width = originalSize;
+                    this.setupVirtualScrolling(); // Update scroll area if size snapped back
+                    this.scheduleRedraw();
+                }
+            } else { // type === 'row'
+                target = this._dataManager.rows[index];
+                currentSize = target.height;
+                if (Math.abs(currentSize - originalSize) > 0.1) { // Check if size actually changed
+                    // Temporarily revert to original size
+                    target.height = originalSize;
+                    const command = new ResizeCommand(target, currentSize);
+                    this._commandManager.executeCommand(command);
+                } else {
+                    target.height = originalSize;
+                    this.setupVirtualScrolling();
+                    this.scheduleRedraw();
+                }
+            }
+
             this._resizeState = null;
             this._canvas.style.cursor = 'cell';
-            // Potentially add resize command to undo/redo stack here
+            // No need to call scheduleRedraw() here if command was executed,
+            // as command execution should trigger redraw if necessary (e.g. via event or direct call)
+            // However, ResizeCommand currently doesn't trigger a redraw. The grid should redraw.
+            // For now, let's ensure redraw if a command might have run or if size snapped back.
+            this.setupVirtualScrolling(); // Ensure scroll area is updated
+            this.scheduleRedraw(); // Redraw to reflect final state
         }
 
         if (this._isDraggingSelection) {
@@ -1144,9 +1190,14 @@ export default class Canvas {
         
         const row = parseInt(this._cellInput.dataset.row!);
         const col = parseInt(this._cellInput.dataset.col!);
-        const value = this._cellInput.value;
+        const newValue = this._cellInput.value;
+        const oldValue = this._dataManager.getCellValue(row, col); // Get old value before changing
         
-        this._dataManager.setCellValue(row, col, value);
+        // Only create command if value actually changed
+        if (newValue !== oldValue) {
+            const command = new CellEditCommand(this._dataManager, row, col, newValue, oldValue);
+            this._commandManager.executeCommand(command);
+        }
         
         this._cellInput.remove();
         this._cellInput = null;
@@ -1239,13 +1290,26 @@ export default class Canvas {
      * Deletes contents of selected cells
      */
     private deleteCellContents(): void {
-        const selectedCells = this._selection.getSelectedCells(1000);
+        const selectedCells = this._selection.getSelectedCells(100000); // Allow more cells for deletion
         
+        if (selectedCells.length === 0) return;
+
+        const commands: CellEditCommand[] = [];
         for (const { row, col } of selectedCells) {
-            this._dataManager.setCellValue(row, col, '');
+            const oldValue = this._dataManager.getCellValue(row, col);
+            if (oldValue !== '') { // Only create command if cell is not already empty
+                commands.push(new CellEditCommand(this._dataManager, row, col, '', oldValue));
+            }
         }
-        
-        this.scheduleRedraw();
+
+        if (commands.length > 0) {
+            if (commands.length === 1) {
+                this._commandManager.executeCommand(commands[0]);
+            } else {
+                this._commandManager.executeCommandGroup(commands, "Delete cell contents");
+            }
+            this.scheduleRedraw();
+        }
     }
 
     /**

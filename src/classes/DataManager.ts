@@ -3,6 +3,51 @@ import Column from './Column';
 import Row from './Row';
 
 /**
+ * Interface defining the complete data state of the grid.
+ * Used for operations like saving, loading, and undo/redo of entire dataset changes.
+ */
+export interface GridDataState {
+    cells: Map<string, CellData>; // Store cell data, not full Cell objects if possible, for serialization
+    columns: ColumnState[];      // Store column state (width, index, etc.)
+    rows: RowState[];            // Store row state (height, index, etc.)
+    rowCount: number;
+    columnCount: number;
+    // Potentially add other global grid settings here if any
+}
+
+/** Helper interface for storable cell data */
+export interface CellData {
+    value: string;
+    // Add other cell properties like style, formula if they become part of Cell class
+    // For now, assuming CellEditCommand handles styles separately if needed.
+    // If Cell class has more properties, they should be here.
+    // For simplicity, let's assume CellEditCommand and ResizeCommand handle detailed properties,
+    // and SetDataCommand primarily handles values and structure.
+    // However, a true "set all data" would need all cell properties.
+    // Let's make CellData mirror Cell properties that DataManager cares about for now.
+    r: number; // row
+    c: number; // col
+    hAlign?: 'left' | 'center' | 'right' | null;
+    vAlign?: 'top' | 'middle' | 'bottom' | null;
+    fontSize?: number | null;
+    // other properties from Cell...
+}
+
+/** Helper interface for storable column state */
+export interface ColumnState {
+    index: number;
+    width: number;
+    // other properties from Column... (hidden, etc.)
+}
+
+/** Helper interface for storable row state */
+export interface RowState {
+    index: number;
+    height: number;
+    // other properties from Row... (hidden, etc.)
+}
+
+/**
  * Manages the data storage and retrieval for the Excel grid
  * Uses sparse storage for memory efficiency with large datasets
  */
@@ -561,5 +606,114 @@ export default class DataManager {
     toString(): string {
         const stats = this.getMemoryStats();
         return `DataManager: ${this._rowCount}x${this._columnCount} grid, ${stats.cellCount} cells, ~${stats.estimatedMemoryKB}KB`;
+    }
+
+    /**
+     * Retrieves the entire current state of the grid data.
+     * @returns {GridDataState} An object representing the current grid state.
+     */
+    getAllData(): GridDataState {
+        const cellDataMap = new Map<string, CellData>();
+        this._cells.forEach((cell, key) => {
+            cellDataMap.set(key, {
+                r: cell.row,
+                c: cell.col,
+                value: cell.value,
+                hAlign: cell.horizontalAlignment,
+                vAlign: cell.verticalAlignment,
+                fontSize: cell.fontSize,
+                // Add other relevant properties from Cell class if they exist
+            });
+        });
+
+        const columnStates: ColumnState[] = this._columns.map(col => ({
+            index: col.index,
+            width: col.width,
+            // Add other relevant properties from Column class (e.g., hidden)
+        }));
+
+        const rowStates: RowState[] = this._rows.map(row => ({
+            index: row.index,
+            height: row.height,
+            // Add other relevant properties from Row class (e.g., hidden)
+        }));
+
+        return {
+            cells: cellDataMap,
+            columns: columnStates,
+            rows: rowStates,
+            rowCount: this._rowCount,
+            columnCount: this._columnCount,
+        };
+    }
+
+    /**
+     * Sets the entire state of the grid data from a GridDataState object.
+     * This will overwrite all current data and structure.
+     * @param {GridDataState} state - The new grid state to apply.
+     */
+    setData(state: GridDataState): void {
+        this._cells.clear();
+        state.cells.forEach((cData, key) => {
+            const cell = new Cell(cData.r, cData.c, cData.value);
+            cell.horizontalAlignment = cData.hAlign ?? null;
+            cell.verticalAlignment = cData.vAlign ?? null;
+            cell.fontSize = cData.fontSize ?? null;
+            // Set other properties if they exist in CellData/Cell
+            this._cells.set(key, cell);
+        });
+
+        this._columns = state.columns.map(cState => {
+            const col = new Column(cState.index, cState.width);
+            // Set other properties if they exist in ColumnState/Column
+            return col;
+        });
+
+        this._rows = state.rows.map(rState => {
+            const row = new Row(rState.index, rState.height);
+            // Set other properties if they exist in RowState/Row
+            return row;
+        });
+
+        this._rowCount = state.rowCount;
+        this._columnCount = state.columnCount;
+
+        // Ensure _columns and _rows arrays are at least as long as _columnCount and _rowCount
+        // This handles cases where the new state might be smaller than the allocated arrays
+        // or if the state defines counts that require extending the arrays with defaults.
+        while (this._columns.length < this._columnCount) {
+            this._columns.push(new Column(this._columns.length));
+        }
+        this._columns.length = this._columnCount; // Truncate if necessary
+
+        while (this._rows.length < this._rowCount) {
+            this._rows.push(new Row(this._rows.length));
+        }
+        this._rows.length = this._rowCount; // Truncate if necessary
+    }
+
+    /**
+     * Gets the default initial state for the grid.
+     * Useful for clearing the grid to a defined empty state.
+     * @param initialRows Optional number of initial rows.
+     * @param initialColumns Optional number of initial columns.
+     * @returns {GridDataState} A GridDataState object representing an empty/initial grid.
+     */
+    getInitialGridState(initialRows: number = 1000, initialColumns: number = 50): GridDataState {
+        const columns: ColumnState[] = [];
+        for (let i = 0; i < initialColumns; i++) {
+            columns.push({ index: i, width: new Column(i).width }); // Use default width from Column constructor
+        }
+        const rows: RowState[] = [];
+        for (let i = 0; i < initialRows; i++) {
+            rows.push({ index: i, height: new Row(i).height }); // Use default height from Row constructor
+        }
+        return {
+            cells: new Map<string, CellData>(),
+            columns: columns,
+            rows: rows,
+            rowCount: initialRows,
+            columnCount: initialColumns,
+        };
     }
 }

@@ -5,6 +5,9 @@ import StatisticsCalculator from './StatisticsCalculator';
 import CommandManager from './CommandManager';
 import CellEditCommand from './CellEditCommand';
 import ResizeCommand from './ResizeCommand';
+import InsertRowCommand from './InsertRowCommand';
+import InsertColumnCommand from './InsertColumnCommand';
+import SetDataCommand from './SetDataCommand'; // Added
 import DataGenerator from './DataGenerator';
 
 /**
@@ -81,8 +84,11 @@ export default class ExcelGrid {
         // Initialize selection manager
         this._selection = new Selection(100000, 500);
         
+        // Initialize command manager for undo/redo
+        this._commandManager = new CommandManager(100);
+
         // Initialize canvas for rendering
-        this._canvas = new Canvas(this._canvasWrapper, this._dataManager, this._selection);
+        this._canvas = new Canvas(this._canvasWrapper, this._dataManager, this._selection, this._commandManager);
         
         // Initialize statistics calculator
         this._statisticsCalculator = new StatisticsCalculator(this._dataManager);
@@ -218,11 +224,28 @@ export default class ExcelGrid {
         const insertRowBtn = document.getElementById('insert-row-btn') as HTMLButtonElement;
         insertRowBtn.addEventListener('click', () => {
             const activeRange = this._selection.activeRange;
-            const rowIndex = activeRange ? activeRange.startRow : this._dataManager.rowCount;
-            if (this._dataManager.insertRow(rowIndex)) {
-                // Potentially adjust selection if it's affected by the insert
+            // If a full row is selected, insert above the first selected row.
+            // Otherwise, insert at the active cell's row, or at the end if no selection.
+            let rowIndex: number;
+            if (this._selection.isFullRowSelected() && activeRange) {
+                rowIndex = activeRange.startRow;
+            } else if (activeRange) {
+                rowIndex = activeRange.startRow;
+            } else {
+                rowIndex = this._dataManager.rowCount;
+            }
+
+            const command = new InsertRowCommand(this._dataManager, rowIndex);
+            if (this._commandManager.executeCommand(command)) {
+                // Adjust selection: if a row was inserted at or before the selection's start,
+                // the selection should move down.
                 if (activeRange && rowIndex <= activeRange.startRow) {
-                    this._selection.selectCell(activeRange.startRow + 1, activeRange.startCol);
+                    // If it was a full row selection, keep it as a full row selection for the new row index
+                    if (this._selection.isFullRowSelected()) {
+                        this._selection.selectRow(activeRange.startRow + 1);
+                    } else {
+                        this._selection.selectCell(activeRange.startRow + 1, activeRange.startCol);
+                    }
                 }
                 this._canvas.redraw();
                 this.updateStatistics();
@@ -234,11 +257,26 @@ export default class ExcelGrid {
         const insertColBtn = document.getElementById('insert-col-btn') as HTMLButtonElement;
         insertColBtn.addEventListener('click', () => {
             const activeRange = this._selection.activeRange;
-            const colIndex = activeRange ? activeRange.startCol : this._dataManager.columnCount;
-            if (this._dataManager.insertColumn(colIndex)) {
-                // Potentially adjust selection
+            let colIndex: number;
+
+            if (this._selection.isFullColumnSelected() && activeRange) {
+                colIndex = activeRange.startCol;
+            } else if (activeRange) {
+                colIndex = activeRange.startCol;
+            } else {
+                colIndex = this._dataManager.columnCount;
+            }
+
+            const command = new InsertColumnCommand(this._dataManager, colIndex);
+            if (this._commandManager.executeCommand(command)) {
+                // Adjust selection: if a column was inserted at or before the selection's start,
+                // the selection should move right.
                 if (activeRange && colIndex <= activeRange.startCol) {
-                     this._selection.selectCell(activeRange.startRow, activeRange.startCol + 1);
+                    if (this._selection.isFullColumnSelected()) {
+                        this._selection.selectColumn(activeRange.startCol + 1);
+                    } else {
+                        this._selection.selectCell(activeRange.startRow, activeRange.startCol + 1);
+                    }
                 }
                 this._canvas.redraw();
                 this.updateStatistics();
@@ -504,12 +542,20 @@ export default class ExcelGrid {
      * Clears all data from the grid
      */
     private clearAllData(): void {
-        if (confirm('Are you sure you want to clear all data? This action cannot be undone.')) {
-            this._dataManager.clear();
-            this._selection.clearSelection();
-            this._commandManager.clearHistory();
-            this._canvas.redraw();
-            this.updateStatistics();
+        if (confirm('Are you sure you want to clear all data? This action will be undoable.')) {
+            // Get the default initial state, matching DataManager's constructor defaults.
+            const initialGridState = this._dataManager.getInitialGridState(1000, 50);
+
+            const command = new SetDataCommand(this._dataManager, initialGridState, "Clear All Data");
+
+            if (this._commandManager.executeCommand(command)) {
+                this._selection.clearSelection(); // Clear selection state on the UI side
+                this._canvas.redraw();
+                this.updateStatistics();
+                // Do NOT call this._commandManager.clearHistory(); here, as SetDataCommand is now undoable.
+            } else {
+                alert('Failed to clear data.');
+            }
         }
     }
 

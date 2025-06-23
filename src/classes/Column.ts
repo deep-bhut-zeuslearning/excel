@@ -130,6 +130,21 @@ export default class Column {
     }
 
     /**
+     * Converts a zero-based column index to an Excel-style column label.
+     * @param {number} index - The zero-based column index.
+     * @returns {string} The Excel-style column label (A, B, ..., AA, AB, etc.).
+     */
+    static getLabel(index: number): string {
+        let label = '';
+        let num = index;
+        while (num >= 0) {
+            label = String.fromCharCode((num % 26) + 65) + label;
+            num = Math.floor(num / 26) - 1;
+        }
+        return label;
+    }
+
+    /**
      * Resets the column to its default state
      */
     reset(): void {
