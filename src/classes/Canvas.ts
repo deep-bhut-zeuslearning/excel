@@ -41,14 +41,14 @@ export default class Canvas {
     /** @type {number} Current vertical scroll position */
     private _scrollY: number = 0;
 
-    /** @type {'left' | 'center' | 'right' | null} Current horizontal alignment */
-    private _horizontalAlignment: 'left' | 'center' | 'right' | null = null;
+    // /** @type {'left' | 'center' | 'right' | null} Current horizontal alignment */
+    // private _horizontalAlignment: 'left' | 'center' | 'right' | null = null;
     
-    /** @type {'top' | 'middle' | 'bottom' | null} Current vertical alignment */
-    private _verticalAlignment: 'top' | 'middle' | 'bottom' | null = null;
+    // /** @type {'top' | 'middle' | 'bottom' | null} Current vertical alignment */
+    // private _verticalAlignment: 'top' | 'middle' | 'bottom' | null = null;
 
-    /** @type {number} Current font size */
-    fontSize: number = 14;
+    // /** @type {number} Current font size */
+    // fontSize: number = 14;
     
     /** @type {object} Cache of visible cell range for performance */
     private _visibleRange = {
@@ -98,7 +98,7 @@ export default class Canvas {
      * @param {DataManager} dataManager - Data manager instance
      * @param {Selection} selection - Selection manager instance
      */
-    constructor(container: HTMLElement, dataManager: DataManager, selection: Selection, horizontalAlignment: 'left' | 'center' | 'right' | null, verticalAlignment: 'top' | 'middle' | 'bottom' | null, fontSize: number) {
+    constructor(container: HTMLElement, dataManager: DataManager, selection: Selection) {
         this._dataManager = dataManager;
         this._selection = selection;
         
@@ -106,10 +106,6 @@ export default class Canvas {
         this._canvas = document.createElement('canvas');
         this._canvas.id = 'excel-canvas';
         this._ctx = this._canvas.getContext('2d')!;
-
-        this._horizontalAlignment = horizontalAlignment;
-        this._verticalAlignment = verticalAlignment;
-        this.fontSize = fontSize;
         
         // Set up wrapper
         this._wrapper = container;
@@ -845,8 +841,8 @@ export default class Canvas {
         // Default font settings
         const defaultFontSize = 14;
         const defaultFontFamily = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-        const defaultHAlign = this._horizontalAlignment ?? 'left';
-        const defaultVAlign = this._verticalAlignment ?? 'middle';
+        const defaultHAlign = 'left';
+        const defaultVAlign = 'middle';
         const cellPadding = 4; // Padding inside cells for text
 
         this._ctx.fillStyle = '#212529';
@@ -881,51 +877,42 @@ export default class Canvas {
                 const value = this._dataManager.getCellValue(r, c);
                 
                 if (value) {
-                    const fontSize = this.fontSize ?? defaultFontSize;
+                    const fontSize = defaultFontSize;
                     this._ctx.font = `${fontSize}px ${defaultFontFamily}`;
 
                     // Clip text to cell boundaries
                     // const fontSize = cell?.fontSize ?? defaultFontSize;
-                    const hAlign = cell?.horizontalAlignment ?? defaultHAlign;
-                    const vAlign = cell?.verticalAlignment ?? defaultVAlign;
+                    const hAlign = defaultHAlign;
+                    const vAlign = defaultVAlign;
                     this._ctx.font = `${fontSize}px ${defaultFontFamily}`;
 
                     // Clip text to cell boundaries
                     this._ctx.save();
                     this._ctx.beginPath();
                     // Use cellPadding for clipping rect
-                    this._ctx.rect(x + cellPadding / 2, y + cellPadding / 2, colWidth - cellPadding, rowHeight - cellPadding);
+                    this._ctx.rect(currentDrawX + cellPadding / 2, currentDrawY + cellPadding / 2, colWidth - cellPadding, rowHeight - cellPadding);
                     this._ctx.clip();
                     
                     // Apply horizontal alignment
                     this._ctx.textAlign = hAlign;
                     let textX = 0;
                     if (hAlign === 'left') {
-                        textX = x + cellPadding;
+                        textX = currentDrawX + cellPadding;
                     } else if (hAlign === 'center') {
-                        textX = x + colWidth / 2;
+                        textX = currentDrawX + colWidth / 2;
                     } else { // right
-                        textX = x + colWidth - cellPadding;
+                        textX = currentDrawX + colWidth - cellPadding;
                     }
 
-                    // Apply vertical alignment
-                    this._ctx.textBaseline = vAlign;
-                    let textY = 0;
-                    if (vAlign === 'top') {
-                        textY = y + cellPadding;
-                    } else if (vAlign === 'middle') {
-                        textY = y + rowHeight / 2;
-                    } else { // bottom
-                        textY = y + rowHeight - cellPadding;
-                    }
-                    
+                    let textY = currentDrawY + rowHeight / 2;
+
                     this._ctx.fillText(value, textX, textY);
                     this._ctx.restore();
                 }
                 
-                x += colWidth;
+                currentDrawX += colWidth;
             }
-            y += rowHeight;
+            currentDrawY += rowHeight;
         }
     }
 
@@ -1050,7 +1037,7 @@ export default class Canvas {
      * @returns {object | null} Resize handle info or null
      */
     private getResizeHandle(viewX: number, viewY: number): { type: 'column' | 'row', index: number } | null {
-        const tolerance = 5 / this._zoomLevel; // Unscale tolerance for comparison with logical coordinates or scale elements
+        const tolerance = 10 / this._zoomLevel; // Unscale tolerance for comparison with logical coordinates or scale elements
 
         const scaledHeaderHeight = this._headerHeight * this._zoomLevel;
         const scaledHeaderWidth = this._headerWidth * this._zoomLevel;
