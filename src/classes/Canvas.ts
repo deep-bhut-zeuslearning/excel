@@ -183,9 +183,9 @@ export default class Canvas {
         this._canvas.width = this._viewportWidth * dpr;
         this._canvas.height = this._viewportHeight * dpr;
 
-        if (dpr > 1) {
+        // if (dpr > 1) {
             this._ctx.scale(dpr, dpr);
-        }
+        // }
     }
 
     /**
@@ -707,7 +707,7 @@ export default class Canvas {
         const scaledHeaderHeight = this._headerHeight * this._zoomLevel;
         
         this._ctx.strokeStyle = '#e0e0e0';
-        this._ctx.lineWidth = Math.max(0.5, 1 / this._zoomLevel); // Keep lines thin or 1px
+        this._ctx.lineWidth = 1;
         this._ctx.beginPath();
         
         // Calculate starting X position for drawing (on-screen coordinate)
@@ -715,7 +715,7 @@ export default class Canvas {
             columns.slice(0, startCol).reduce((sum, col) => sum + col.width * this._zoomLevel, 0);
         
         for (let c = startCol; c <= endCol && c < columns.length; c++) {
-            const xPos = Math.round(currentDrawX);
+            const xPos = Math.round(currentDrawX) + 0.5;
             this._ctx.moveTo(xPos, 0);
             this._ctx.lineTo(xPos, this._viewportHeight);
             currentDrawX += columns[c].width * this._zoomLevel;
