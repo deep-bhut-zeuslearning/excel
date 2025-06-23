@@ -76,7 +76,7 @@ export default class ExcelGrid {
      */
     private initializeComponents(): void {
         // Initialize data manager with large capacity
-        this._dataManager = new DataManager(1000, 50, 100000, 500);
+        this._dataManager = new DataManager(1000, 1000, 100000, 500);
         
         // Initialize selection manager
         this._selection = new Selection(100000, 500);

@@ -536,40 +536,6 @@ export default class DataManager {
     }
 
     /**
-     * Sets the font size for a specific cell.
-     * @param {number} row - Row index
-     * @param {number} col - Column index
-     * @param {number | null} fontSize - Font size to set, or null for default.
-     */
-    setCellFontSize(row: number, col: number, fontSize: number | null): void {
-        if (row < 0 || row >= this._maxRows || col < 0 || col >= this._maxColumns) {
-            return;
-        }
-
-        this.ensureCapacity(row + 1, col + 1); // Ensure row/col arrays are large enough
-
-        const key = this.getCellKey(row, col);
-        let cell = this._cells.get(key);
-
-        if (!cell) {
-            // If cell doesn't exist, create it only if a non-default font size is applied
-            // or if we intend to store cells with only custom styles and no value.
-            // For now, let's create it if a font size is being set.
-            cell = new Cell(row, col, '');
-        }
-
-        cell.fontSize = fontSize;
-
-        // Store the cell if it has a value or a non-default font size
-        // If it has no value AND default font size, it can be removed from sparse storage.
-        if (cell.value === '' && cell.fontSize === null) { // Assuming null is default
-            this._cells.delete(key);
-        } else {
-            this._cells.set(key, cell);
-        }
-    }
-
-    /**
      * Clears all data from the grid
      */
     clear(): void {
