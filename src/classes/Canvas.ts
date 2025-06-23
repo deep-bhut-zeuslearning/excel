@@ -1042,13 +1042,15 @@ export default class Canvas {
         this._cellInput.type = 'text';
         this._cellInput.className = 'cell-input';
         this._cellInput.value = this._dataManager.getCellValue(row, col);
+
+        const wrapperRect = this._wrapper.getBoundingClientRect();  
         
         this._cellInput.style.position = 'absolute';
         // cellRect.x and .y are view coordinates relative to the wrapper's content area (canvas area)
-        this._cellInput.style.left = (cellRect.x - 1) + 'px'; // -1 for border
-        this._cellInput.style.top = (cellRect.y - 1) + 'px';  // -1 for border
-        this._cellInput.style.width = (cellRect.width + 2) + 'px'; // +2 for borders
-        this._cellInput.style.height = (cellRect.height + 2) + 'px'; // +2 for borders
+        this._cellInput.style.left = (wrapperRect.left + cellRect.x - 4) + 'px'; // -1 for border
+        this._cellInput.style.top = (wrapperRect.top + cellRect.y - 4) + 'px';  // -1 for border
+        this._cellInput.style.width = (cellRect.width) + 'px'; // +2 for borders
+        this._cellInput.style.height = (cellRect.height) + 'px'; // +2 for borders
         this._cellInput.style.fontSize = `${14 * this._zoomLevel}px`;
         this._cellInput.style.zIndex = '100';
         
@@ -1056,7 +1058,7 @@ export default class Canvas {
         this._cellInput.dataset.row = row.toString();
         this._cellInput.dataset.col = col.toString();
         
-        this._wrapper.appendChild(this._cellInput); // Append to wrapper
+        document.body.appendChild(this._cellInput); // Append to wrapper
 
         this._cellInput.focus();
         this._cellInput.select();
@@ -1112,17 +1114,12 @@ export default class Canvas {
         const row = parseInt(this._cellInput.dataset.row!);
         const col = parseInt(this._cellInput.dataset.col!);
     
-        const cellRect = this.getCellRect(row, col); // cellRect is already scaled for view
-        if (cellRect && cellRect.width > 0 && cellRect.height > 0) {
-            this._cellInput.style.left = (cellRect.x - 1) + 'px'; // -1 for border
-            this._cellInput.style.top = (cellRect.y - 1) + 'px';  // -1 for border
-            this._cellInput.style.width = (cellRect.width + 2) + 'px';
-            this._cellInput.style.height = (cellRect.height + 2) + 'px';
-            this._cellInput.style.fontSize = `${14 * this._zoomLevel}px`;
-            this._cellInput.style.display = 'block';
-        } else {
-            // If cell is scrolled out of view or too small, hide the input
-            this._cellInput.style.display = 'none';
+        const cellRect = this.getCellRect(row, col);
+        if (cellRect) {
+            const wrapperRect = this._wrapper.getBoundingClientRect();
+    
+            this._cellInput.style.left = (wrapperRect.left + cellRect.x - 4) + 'px';
+            this._cellInput.style.top = (wrapperRect.top + cellRect.y - 4) + 'px';
         }
     }
     
@@ -1167,13 +1164,13 @@ export default class Canvas {
                                     // So, the on-screen position of an item at logicalX is:
                                     // (logicalX * this._zoomLevel) - (this._scrollX * this._zoomLevel)
 
-        const scaledHeaderWidth = this._headerWidth * this._zoomLevel;
-        const scaledHeaderHeight = this._headerHeight * this._zoomLevel;
+        // const scaledHeaderWidth = this._headerWidth * this._zoomLevel;
+        // const scaledHeaderHeight = this._headerHeight * this._zoomLevel;
 
         const cellWidthScaled = columns[col].width * this._zoomLevel;
         const cellHeightScaled = rows[row].height * this._zoomLevel;
 
-        let cellViewX = scaledHeaderWidth - this._scrollX;
+        cellViewX = scaledHeaderWidth - this._scrollX;
         for (let i = 0; i < col; i++) {
             cellViewX += columns[i].width * this._zoomLevel;
         }

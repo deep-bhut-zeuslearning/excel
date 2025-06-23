@@ -73,4 +73,4 @@ export abstract class BaseCommand implements ICommand {
     abstract undo(): boolean;
 }
 
-export { BaseCommand }
+// export { BaseCommand }

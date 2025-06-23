@@ -277,6 +277,10 @@ export default class DataManager {
         return Array.from(this._cells.values());
     }
 
+    getCellLabel(row: number, col: number): string {
+        return 'label';
+    }
+
     /**
      * Finds cells containing a specific value
      * @param {string} searchValue - Value to search for
