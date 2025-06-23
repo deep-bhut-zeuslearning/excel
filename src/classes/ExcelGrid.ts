@@ -116,6 +116,20 @@ export default class ExcelGrid {
                 <button class="toolbar-button" id="select-all-btn">📋 Select All</button>
                 <button class="toolbar-button" id="clear-selection-btn">❌ Clear Selection</button>
             </div>
+
+            <div class="toolbar-separator"></div>
+
+            <div class="toolbar-group">
+                <input type="text" id="find-input" placeholder="Find value..." class="toolbar-input">
+                <button class="toolbar-button" id="find-btn">🔍 Find</button>
+            </div>
+
+            <div class="toolbar-separator"></div>
+
+            <div class="toolbar-group">
+                <button class="toolbar-button" id="insert-row-btn">➕ Insert Row</button>
+                <button class="toolbar-button" id="insert-col-btn">➕ Insert Column</button>
+            </div>
         `;
         
         this.setupToolbarEvents();
@@ -174,6 +188,65 @@ export default class ExcelGrid {
             this.updateStatistics();
         });
         
+        // Find functionality
+        const findInput = document.getElementById('find-input') as HTMLInputElement;
+        const findBtn = document.getElementById('find-btn') as HTMLButtonElement;
+
+        findBtn.addEventListener('click', () => {
+            const searchValue = findInput.value;
+            if (searchValue) {
+                const foundCells = this._dataManager.findCells(searchValue);
+                if (foundCells.length > 0) {
+                    const firstCell = foundCells[0];
+                    this._selection.selectCell(firstCell.row, firstCell.col);
+                    // TODO: Consider scrolling to the selected cell if it's not visible
+                    this._canvas.redraw();
+                    this.updateStatistics(); // Update stats based on new selection
+                } else {
+                    alert('Value not found.');
+                }
+            }
+        });
+
+        findInput.addEventListener('keypress', (event) => {
+            if (event.key === 'Enter') {
+                findBtn.click();
+            }
+        });
+
+        // Insert Row/Column functionality
+        const insertRowBtn = document.getElementById('insert-row-btn') as HTMLButtonElement;
+        insertRowBtn.addEventListener('click', () => {
+            const activeRange = this._selection.activeRange;
+            const rowIndex = activeRange ? activeRange.startRow : this._dataManager.rowCount;
+            if (this._dataManager.insertRow(rowIndex)) {
+                // Potentially adjust selection if it's affected by the insert
+                if (activeRange && rowIndex <= activeRange.startRow) {
+                    this._selection.selectCell(activeRange.startRow + 1, activeRange.startCol);
+                }
+                this._canvas.redraw();
+                this.updateStatistics();
+            } else {
+                alert('Cannot insert row. Maximum row limit reached or invalid index.');
+            }
+        });
+
+        const insertColBtn = document.getElementById('insert-col-btn') as HTMLButtonElement;
+        insertColBtn.addEventListener('click', () => {
+            const activeRange = this._selection.activeRange;
+            const colIndex = activeRange ? activeRange.startCol : this._dataManager.columnCount;
+            if (this._dataManager.insertColumn(colIndex)) {
+                // Potentially adjust selection
+                if (activeRange && colIndex <= activeRange.startCol) {
+                     this._selection.selectCell(activeRange.startRow, activeRange.startCol + 1);
+                }
+                this._canvas.redraw();
+                this.updateStatistics();
+            } else {
+                alert('Cannot insert column. Maximum column limit reached or invalid index.');
+            }
+        });
+
         // Update button states periodically
         setInterval(() => this.updateToolbarState(), 100);
     }

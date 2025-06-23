@@ -105,6 +105,30 @@ html, body {
   transform: translateY(-2px);
 }
 
+/* Toolbar input styling */
+.toolbar-input {
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(200, 200, 200, 0.5);
+  border-radius: 6px;
+  color: #333;
+  font-size: 14px;
+  outline: none;
+  transition: all 0.3s ease;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.toolbar-input::placeholder {
+  color: #888;
+}
+
+.toolbar-input:focus {
+  background: white;
+  border-color: #007bff;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1), 0 0 0 2px rgba(0, 123, 255, 0.25);
+}
+
+
 /* Statistics bar */
 #statistics-bar {
   height: 40px;
@@ -156,21 +180,23 @@ html, body {
 
 /* Cell input overlay */
 .cell-input {
-  position: absolute;
-  border: 2px solid #007bff;
+  /* position: absolute; is now set dynamically via JS */
+  border: 1px solid #007bff; /* Slightly thinner border */
   font-family: 'Segoe UI', Arial, sans-serif;
-  font-size: 14px;
-  padding: 4px 8px;
+  font-size: 14px; /* Should match canvas font size for cells */
+  padding: 0 2px; /* Minimal padding, adjusted to align text */
   outline: none;
   background: white;
-  box-shadow: 0 4px 12px rgba(0, 123, 255, 0.3);
-  z-index: 100;
-  border-radius: 3px;
-  transition: box-shadow 0.2s ease;
+  box-shadow: 0 2px 6px rgba(0, 123, 255, 0.25); /* Softer shadow */
+  /* z-index is set dynamically via JS */
+  border-radius: 0px; /* No border radius for tight fit */
+  /* transition: box-shadow 0.2s ease; Might be too slow for quick edits */
+  box-sizing: border-box; /* Ensure padding and border are included in width/height */
 }
 
 .cell-input:focus {
-  box-shadow: 0 0 0 4px rgba(0, 123, 255, 0.15);
+  border-color: #0056b3; /* Darker blue on focus */
+  /* box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.2); /* Focus ring */
 }
 
 /* Loading overlay with backdrop blur */

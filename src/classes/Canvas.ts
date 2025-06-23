@@ -67,6 +67,16 @@ export default class Canvas {
         originalSize: number;
     } | null = null;
 
+    /** @type {number} Current zoom level */
+    private _zoomLevel: number = 1;
+
+    /** @type {number} Minimum zoom level */
+    private readonly _minZoom: number = 0.2;
+
+    /** @type {number} Maximum zoom level */
+    private readonly _maxZoom: number = 3;
+
+
     /**
      * Initializes a new Canvas instance
      * @param {HTMLElement} container - Container element for the canvas
@@ -167,7 +177,7 @@ export default class Canvas {
      * Sets up virtual scrolling for large datasets
      */
     private setupVirtualScrolling(): void {
-        // Calculate total content size
+        // Calculate total content size (unscaled)
         const totalWidth = this._headerWidth + this._dataManager.columns.reduce((sum, col) => sum + col.width, 0);
         const totalHeight = this._headerHeight + this._dataManager.rows.reduce((sum, row) => sum + row.height, 0);
         
@@ -218,10 +228,76 @@ export default class Canvas {
         // Prevent canvas from interfering with wrapper scrolling
         this._canvas.addEventListener('wheel', (e) => {
             e.preventDefault();
-            // Forward wheel events to the wrapper for scrolling
-            this._wrapper.scrollLeft += e.deltaX;
-            this._wrapper.scrollTop += e.deltaY;
+            if (e.ctrlKey) {
+                // Zooming
+                const zoomFactor = e.deltaY > 0 ? 0.9 : 1.1;
+                this.setZoom(this._zoomLevel * zoomFactor);
+            } else {
+                // Forward wheel events to the wrapper for scrolling
+                this._wrapper.scrollLeft += e.deltaX;
+                this._wrapper.scrollTop += e.deltaY;
+            }
         });
+
+        // Add document-level keydown for zoom shortcuts, as canvas might not always have focus
+        document.addEventListener('keydown', this.handleGlobalKeyDown.bind(this));
+    }
+
+    /**
+     * Handles global keydown events for application-wide shortcuts (like zoom)
+     * @param {KeyboardEvent} event - Keyboard event
+     */
+    private handleGlobalKeyDown(event: KeyboardEvent): void {
+        if (event.ctrlKey || event.metaKey) {
+            let handled = false;
+            switch (event.key) {
+                case '+':
+                case '=': // Handle '=' as '+' for convenience
+                    this.setZoom(this._zoomLevel * 1.1);
+                    handled = true;
+                    break;
+                case '-':
+                    this.setZoom(this._zoomLevel * 0.9);
+                    handled = true;
+                    break;
+                case '0':
+                    this.setZoom(1); // Reset zoom
+                    handled = true;
+                    break;
+            }
+            if (handled) {
+                event.preventDefault();
+            }
+        }
+    }
+
+    /**
+     * Sets the zoom level and redraws the canvas
+     * @param {number} newZoomLevel - The new zoom level
+     */
+    private setZoom(newZoomLevel: number): void {
+        const oldZoomLevel = this._zoomLevel;
+        this._zoomLevel = Math.max(this._minZoom, Math.min(this._maxZoom, newZoomLevel));
+
+        if (this._zoomLevel !== oldZoomLevel) {
+            // Adjust scroll position to keep the center of the view fixed
+            // This is a simplified approach; more sophisticated methods might zoom into the mouse pointer
+            const centerX = this._scrollX + this._viewportWidth / 2;
+            const centerY = this._scrollY + this._viewportHeight / 2;
+
+            const newScrollX = (centerX / oldZoomLevel) * this._zoomLevel - this._viewportWidth / 2;
+            const newScrollY = (centerY / oldZoomLevel) * this._zoomLevel - this._viewportHeight / 2;
+
+            this._wrapper.scrollLeft = newScrollX;
+            this._wrapper.scrollTop = newScrollY;
+
+            this.updateCanvasSize(); // May need adjustment if zoom affects canvas element size itself
+            this.setupVirtualScrolling(); // Virtual scroll area depends on zoom
+            this.scheduleRedraw();
+            if (this._cellInput) {
+                this.updateCellInputPosition(); // Update editor position on zoom
+            }
+        }
     }
 
     /**
@@ -335,10 +411,12 @@ export default class Canvas {
         if (this._resizeState) {
             // Handle active resize operation
             const delta = this._resizeState.type === 'column' 
-                ? x - this._resizeState.startX 
-                : y - this._resizeState.startY;
+                ? x - this._resizeState.startX  // delta in view pixels
+                : y - this._resizeState.startY; // delta in view pixels
             
-            const newSize = Math.max(40, this._resizeState.originalSize + delta);
+            const logicalDelta = delta / this._zoomLevel; // Convert view delta to logical delta
+            const minLogicalSize = 20; // Minimum logical width/height for a cell
+            const newSize = Math.max(minLogicalSize, this._resizeState.originalSize + logicalDelta);
             
             if (this._resizeState.type === 'column') {
                 this._dataManager.columns[this._resizeState.index].width = newSize;
@@ -518,47 +596,68 @@ export default class Canvas {
     private updateVisibleRange(): void {
         const columns = this._dataManager.columns;
         const rows = this._dataManager.rows;
-        
+
+        const scaledHeaderWidth = this._headerWidth * this._zoomLevel;
+        const scaledHeaderHeight = this._headerHeight * this._zoomLevel;
+
         // Calculate visible columns
-        let x = this._headerWidth;
+        // We are looking for the first column whose *left* edge is to the right of (scrollX - its own width)
+        // and the last column whose *left* edge is to the left of (scrollX + viewportWidth)
+        let currentX = 0;
         let startCol = 0;
-        
-        while (startCol < columns.length && x + columns[startCol].width < this._scrollX) {
-            x += columns[startCol].width;
-            startCol++;
+        for (let i = 0; i < columns.length; i++) {
+            if (currentX + columns[i].width * this._zoomLevel >= this._scrollX) {
+                startCol = i;
+                break;
+            }
+            currentX += columns[i].width * this._zoomLevel;
+            if (i === columns.length -1) startCol = i; // If all are before scrollX
         }
         
         let endCol = startCol;
-        let totalWidth = x;
-        while (endCol < columns.length && totalWidth < this._scrollX + this._viewportWidth + 100) {
-            totalWidth += columns[endCol].width;
+        currentX = columns.slice(0, startCol).reduce((sum, col) => sum + col.width * this._zoomLevel, 0);
+        while (endCol < columns.length && currentX < this._scrollX + this._viewportWidth / this._zoomLevel + 100 * this._zoomLevel) { // Add buffer
+            currentX += columns[endCol].width * this._zoomLevel;
             endCol++;
         }
-        
+        endCol = Math.min(endCol, columns.length -1);
+
+
         // Calculate visible rows
-        let y = this._headerHeight;
+        let currentY = 0;
         let startRow = 0;
-        
-        while (startRow < rows.length && y + rows[startRow].height < this._scrollY) {
-            y += rows[startRow].height;
-            startRow++;
+        for (let i = 0; i < rows.length; i++) {
+            if (currentY + rows[i].height * this._zoomLevel >= this._scrollY) {
+                startRow = i;
+                break;
+            }
+            currentY += rows[i].height * this._zoomLevel;
+             if (i === rows.length -1) startRow = i;
         }
-        
+
         let endRow = startRow;
-        let totalHeight = y;
-        while (endRow < rows.length && totalHeight < this._scrollY + this._viewportHeight + 100) {
-            totalHeight += rows[endRow].height;
+        currentY = rows.slice(0, startRow).reduce((sum, row) => sum + row.height * this._zoomLevel, 0);
+        while (endRow < rows.length && currentY < this._scrollY + this._viewportHeight / this._zoomLevel + 100 * this._zoomLevel) { // Add buffer
+            currentY += rows[endRow].height * this._zoomLevel;
             endRow++;
         }
+        endRow = Math.min(endRow, rows.length -1);
         
-        this._visibleRange = { startRow, endRow, startCol, endCol };
+        this._visibleRange = {
+            startRow: Math.max(0, startRow),
+            endRow: Math.min(this._dataManager.rowCount -1, endRow),
+            startCol: Math.max(0, startCol),
+            endCol: Math.min(this._dataManager.columnCount -1, endCol)
+        };
     }
 
     /**
      * Clears the entire canvas
      */
     private clearCanvas(): void {
-        this._ctx.clearRect(0, 0, this._viewportWidth, this._viewportHeight);
+        // Clear with respect to the scaled viewport if dpr is used
+        const dpr = window.devicePixelRatio || 1;
+        this._ctx.clearRect(0, 0, this._canvas.width / dpr, this._canvas.height / dpr);
     }
 
     /**
@@ -568,36 +667,47 @@ export default class Canvas {
         const { startRow, endRow, startCol, endCol } = this._visibleRange;
         const columns = this._dataManager.columns;
         const rows = this._dataManager.rows;
+
+        const scaledHeaderWidth = this._headerWidth * this._zoomLevel;
+        const scaledHeaderHeight = this._headerHeight * this._zoomLevel;
         
-        // this._ctx.strokeStyle = '#000000';
         this._ctx.strokeStyle = '#e0e0e0';
-        this._ctx.lineWidth = 1;
+        this._ctx.lineWidth = Math.max(0.5, 1 / this._zoomLevel); // Keep lines thin or 1px
         this._ctx.beginPath();
         
-        // Calculate starting positions
-        const startX = this._headerWidth + 
-            columns.slice(0, startCol).reduce((sum, col) => sum + col.width, 0) - this._scrollX;
-        const startY = this._headerHeight + 
-            rows.slice(0, startRow).reduce((sum, row) => sum + row.height, 0) - this._scrollY;
+        // Calculate starting X position for drawing (on-screen coordinate)
+        let currentDrawX = scaledHeaderWidth - this._scrollX +
+            columns.slice(0, startCol).reduce((sum, col) => sum + col.width * this._zoomLevel, 0);
         
-        // Draw vertical lines
-        let x = startX;
-        for (let col = startCol; col <= endCol && col <= columns.length; col++) {
-            this._ctx.moveTo(x, 0);
-            this._ctx.lineTo(x, this._viewportHeight);
-            if (col < columns.length) {
-                x += columns[col].width;
-            }
+        for (let c = startCol; c <= endCol && c < columns.length; c++) {
+            const xPos = Math.round(currentDrawX);
+            this._ctx.moveTo(xPos, 0);
+            this._ctx.lineTo(xPos, this._viewportHeight);
+            currentDrawX += columns[c].width * this._zoomLevel;
         }
-        
-        // Draw horizontal lines
-        let y = startY;
-        for (let row = startRow; row <= endRow && row <= rows.length; row++) {
-            this._ctx.moveTo(0, y);
-            this._ctx.lineTo(this._viewportWidth, y);
-            if (row < rows.length) {
-                y += rows[row].height;
-            }
+        // Last vertical line if endCol is last column
+        if(endCol === columns.length -1) {
+             const xPos = Math.round(currentDrawX);
+             this._ctx.moveTo(xPos, 0);
+             this._ctx.lineTo(xPos, this._viewportHeight);
+        }
+
+
+        // Calculate starting Y position for drawing (on-screen coordinate)
+        let currentDrawY = scaledHeaderHeight - this._scrollY +
+            rows.slice(0, startRow).reduce((sum, row) => sum + row.height * this._zoomLevel, 0);
+
+        for (let r = startRow; r <= endRow && r < rows.length; r++) {
+            const yPos = Math.round(currentDrawY);
+            this._ctx.moveTo(0, yPos);
+            this._ctx.lineTo(this._viewportWidth, yPos);
+            currentDrawY += rows[r].height * this._zoomLevel;
+        }
+         // Last horizontal line if endRow is last row
+        if(endRow === rows.length -1) {
+            const yPos = Math.round(currentDrawY);
+            this._ctx.moveTo(0, yPos);
+            this._ctx.lineTo(this._viewportWidth, yPos);
         }
         
         this._ctx.stroke();
@@ -610,67 +720,76 @@ export default class Canvas {
         const { startCol, endCol, startRow, endRow } = this._visibleRange;
         const columns = this._dataManager.columns;
         const rows = this._dataManager.rows;
+
+        const scaledHeaderHeight = this._headerHeight * this._zoomLevel;
+        const scaledHeaderWidth = this._headerWidth * this._zoomLevel;
         
-        // Header background
         this._ctx.fillStyle = '#f8f9fa';
-        this._ctx.fillRect(0, 0, this._viewportWidth, this._headerHeight);
-        this._ctx.fillRect(0, 0, this._headerWidth, this._viewportHeight);
+        this._ctx.fillRect(0, 0, this._viewportWidth, scaledHeaderHeight);
+        this._ctx.fillRect(0, 0, scaledHeaderWidth, this._viewportHeight);
         
-        // Header text style
         this._ctx.fillStyle = '#495057';
-        this._ctx.font = '12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+        this._ctx.font = `${Math.round(12 * this._zoomLevel)}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
         this._ctx.textAlign = 'center';
         this._ctx.textBaseline = 'middle';
-        
-        // Draw column headers
-        const startX = this._headerWidth + 
-            columns.slice(0, startCol).reduce((sum, col) => sum + col.width, 0) - this._scrollX;
-        
-        let x = startX;
-        for (let col = startCol; col < endCol && col < columns.length; col++) {
-            const width = columns[col].width;
-            const label = columns[col].getLabel();
-            
-            // Highlight if column is selected
-            if (this._selection.isColumnSelected(col)) {
-                this._ctx.fillStyle = '#e3f2fd';
-                this._ctx.fillRect(x, 0, width, this._headerHeight);
-                this._ctx.fillStyle = '#495057';
-            }
-            
-            this._ctx.strokeStyle = '#dee2e6';
-            this._ctx.strokeRect(x, 0, width, this._headerHeight);
-            this._ctx.fillText(label, x + width / 2, this._headerHeight / 2);
-            
-            x += width;
-        }
-        
-        // Draw row headers
-        const startY = this._headerHeight + 
-            rows.slice(0, startRow).reduce((sum, row) => sum + row.height, 0) - this._scrollY;
-        
-        let y = startY;
-        for (let row = startRow; row < endRow && row < rows.length; row++) {
-            const height = rows[row].height;
-            const label = rows[row].getLabel();
-            
-            // Highlight if row is selected
-            if (this._selection.isRowSelected(row)) {
-                this._ctx.fillStyle = '#fff3e0';
-                this._ctx.fillRect(0, y, this._headerWidth, height);
-                this._ctx.fillStyle = '#495057';
-            }
-            
-            this._ctx.strokeStyle = '#dee2e6';
-            this._ctx.strokeRect(0, y, this._headerWidth, height);
-            this._ctx.fillText(label, this._headerWidth / 2, y + height / 2);
-            
-            y += height;
-        }
-        
-        // Corner cell
         this._ctx.strokeStyle = '#dee2e6';
-        this._ctx.strokeRect(0, 0, this._headerWidth, this._headerHeight);
+        this._ctx.lineWidth = Math.max(0.5, 1 / this._zoomLevel);
+
+
+        let currentDrawX = scaledHeaderWidth - this._scrollX +
+            columns.slice(0, startCol).reduce((sum, col) => sum + col.width * this._zoomLevel, 0);
+        for (let c = startCol; c <= endCol && c < columns.length; c++) {
+            const colDef = columns[c];
+            const width = colDef.width * this._zoomLevel;
+            const label = colDef.getLabel();
+            
+            if (currentDrawX + width < 0 || currentDrawX > this._viewportWidth) {
+                currentDrawX += width;
+                continue;
+            }
+
+            if (this._selection.isColumnSelected(c)) {
+                this._ctx.fillStyle = '#e3f2fd';
+                this._ctx.fillRect(Math.round(currentDrawX), 0, Math.round(width), Math.round(scaledHeaderHeight));
+                this._ctx.fillStyle = '#495057';
+            }
+            
+            this._ctx.strokeRect(Math.round(currentDrawX), 0, Math.round(width), Math.round(scaledHeaderHeight));
+            if (width > 10 * this._zoomLevel) { // Only draw text if there's enough space
+                 this._ctx.fillText(label, Math.round(currentDrawX + width / 2), Math.round(scaledHeaderHeight / 2));
+            }
+            currentDrawX += width;
+        }
+        
+        let currentDrawY = scaledHeaderHeight - this._scrollY +
+            rows.slice(0, startRow).reduce((sum, row) => sum + row.height * this._zoomLevel, 0);
+        for (let r = startRow; r <= endRow && r < rows.length; r++) {
+            const rowDef = rows[r];
+            const height = rowDef.height * this._zoomLevel;
+            const label = rowDef.getLabel();
+
+            if (currentDrawY + height < 0 || currentDrawY > this._viewportHeight) {
+                currentDrawY += height;
+                continue;
+            }
+            
+            if (this._selection.isRowSelected(r)) {
+                this._ctx.fillStyle = '#fff3e0';
+                this._ctx.fillRect(0, Math.round(currentDrawY), Math.round(scaledHeaderWidth), Math.round(height));
+                this._ctx.fillStyle = '#495057';
+            }
+            
+            this._ctx.strokeRect(0, Math.round(currentDrawY), Math.round(scaledHeaderWidth), Math.round(height));
+            if (height > 10 * this._zoomLevel) { // Only draw text if there's enough space
+                this._ctx.fillText(label, Math.round(scaledHeaderWidth / 2), Math.round(currentDrawY + height / 2));
+            }
+            currentDrawY += height;
+        }
+        
+        this._ctx.fillStyle = '#f8f9fa';
+        this._ctx.fillRect(0,0, Math.round(scaledHeaderWidth), Math.round(scaledHeaderHeight));
+        this._ctx.strokeRect(0, 0, Math.round(scaledHeaderWidth), Math.round(scaledHeaderHeight));
+        this._ctx.lineWidth = 1; // Reset
     }
 
     /**
@@ -680,44 +799,64 @@ export default class Canvas {
         const { startRow, endRow, startCol, endCol } = this._visibleRange;
         const columns = this._dataManager.columns;
         const rows = this._dataManager.rows;
-        
-        const startX = this._headerWidth + 
-            columns.slice(0, startCol).reduce((sum, col) => sum + col.width, 0) - this._scrollX;
-        const startY = this._headerHeight + 
-            rows.slice(0, startRow).reduce((sum, row) => sum + row.height, 0) - this._scrollY;
+
+        const scaledHeaderWidth = this._headerWidth * this._zoomLevel;
+        const scaledHeaderHeight = this._headerHeight * this._zoomLevel;
         
         this._ctx.fillStyle = '#212529';
-        this._ctx.font = '14px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+        this._ctx.font = `${Math.round(14 * this._zoomLevel)}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
         this._ctx.textBaseline = 'middle';
-        
-        let y = startY;
-        for (let row = startRow; row < endRow && row < rows.length; row++) {
-            let x = startX;
-            const rowHeight = rows[row].height;
+        this._ctx.textAlign = 'left';
+
+        let currentDrawY = scaledHeaderHeight - this._scrollY +
+            rows.slice(0, startRow).reduce((sum, r) => sum + r.height * this._zoomLevel, 0);
+
+        for (let r = startRow; r <= endRow && r < rows.length; r++) {
+            const rowDef = rows[r];
+            const rowHeight = rowDef.height * this._zoomLevel;
+
+            if (currentDrawY + rowHeight < 0 || currentDrawY > this._viewportHeight) {
+                currentDrawY += rowHeight;
+                continue;
+            }
+
+            let currentDrawX = scaledHeaderWidth - this._scrollX +
+                columns.slice(0, startCol).reduce((sum, c) => sum + c.width * this._zoomLevel, 0);
             
-            for (let col = startCol; col < endCol && col < columns.length; col++) {
-                const colWidth = columns[col].width;
-                const value = this._dataManager.getCellValue(row, col);
+            for (let c = startCol; c <= endCol && c < columns.length; c++) {
+                const colDef = columns[c];
+                const colWidth = colDef.width * this._zoomLevel;
+
+                if (currentDrawX + colWidth < 0 || currentDrawX > this._viewportWidth) {
+                    currentDrawX += colWidth;
+                    continue;
+                }
+
+                const value = this._dataManager.getCellValue(r, c);
                 
                 if (value) {
-                    // Clip text to cell boundaries
-                    this._ctx.save();
-                    this._ctx.beginPath();
-                    this._ctx.rect(x + 2, y + 2, colWidth - 4, rowHeight - 4);
-                    this._ctx.clip();
-                    
-                    this._ctx.textAlign = 'left';
-                    
-                    const textX = x + 4; // Adjusted for left alignment
-                    const textY = y + rowHeight / 2;
-                    
-                    this._ctx.fillText(value, textX, textY);
-                    this._ctx.restore();
+                    const padding = 4 * this._zoomLevel;
+                    const textX = Math.round(currentDrawX + padding);
+                    const textY = Math.round(currentDrawY + rowHeight / 2);
+
+                    // Only draw if text and cell are reasonably sized
+                    if (colWidth > padding * 2 && rowHeight > padding) {
+                        this._ctx.save();
+                        this._ctx.beginPath();
+                        this._ctx.rect(
+                            Math.round(currentDrawX),
+                            Math.round(currentDrawY),
+                            Math.round(colWidth),
+                            Math.round(rowHeight)
+                        );
+                        this._ctx.clip();
+                        this._ctx.fillText(value, textX, textY);
+                        this._ctx.restore();
+                    }
                 }
-                
-                x += colWidth;
+                currentDrawX += colWidth;
             }
-            y += rowHeight;
+            currentDrawY += rowHeight;
         }
     }
 
@@ -730,35 +869,47 @@ export default class Canvas {
         const { startRow, endRow, startCol, endCol } = this._visibleRange;
         const columns = this._dataManager.columns;
         const rows = this._dataManager.rows;
-        
-        const startX = this._headerWidth + 
-            columns.slice(0, startCol).reduce((sum, col) => sum + col.width, 0) - this._scrollX;
-        const startY = this._headerHeight + 
-            rows.slice(0, startRow).reduce((sum, row) => sum + row.height, 0) - this._scrollY;
-        
+
+        const scaledHeaderWidth = this._headerWidth * this._zoomLevel;
+        const scaledHeaderHeight = this._headerHeight * this._zoomLevel;
+
         this._ctx.strokeStyle = '#007bff';
-        this._ctx.lineWidth = 2;
+        this._ctx.lineWidth = Math.max(1, 2 * this._zoomLevel);
         this._ctx.fillStyle = 'rgba(0, 123, 255, 0.1)';
         
-        let y = startY;
-        for (let row = startRow; row < endRow && row < rows.length; row++) {
-            let x = startX;
-            const rowHeight = rows[row].height;
+        let currentDrawY = scaledHeaderHeight - this._scrollY +
+            rows.slice(0, startRow).reduce((sum, r) => sum + r.height * this._zoomLevel, 0);
+
+        for (let r = startRow; r <= endRow && r < rows.length; r++) {
+            const rowDef = rows[r];
+            const rowHeight = rowDef.height * this._zoomLevel;
+
+            if (currentDrawY + rowHeight < 0 || currentDrawY > this._viewportHeight) {
+                currentDrawY += rowHeight;
+                continue;
+            }
             
-            for (let col = startCol; col < endCol && col < columns.length; col++) {
-                const colWidth = columns[col].width;
-                
-                if (this._selection.isSelected(row, col)) {
-                    this._ctx.fillRect(x, y, colWidth, rowHeight);
-                    this._ctx.strokeRect(x, y, colWidth, rowHeight);
+            let currentDrawX = scaledHeaderWidth - this._scrollX +
+                columns.slice(0, startCol).reduce((sum, c) => sum + c.width * this._zoomLevel, 0);
+
+            for (let c = startCol; c <= endCol && c < columns.length; c++) {
+                const colDef = columns[c];
+                const colWidth = colDef.width * this._zoomLevel;
+
+                if (currentDrawX + colWidth < 0 || currentDrawX > this._viewportWidth) {
+                    currentDrawX += colWidth;
+                    continue;
                 }
                 
-                x += colWidth;
+                if (this._selection.isSelected(r, c)) {
+                    this._ctx.fillRect(Math.round(currentDrawX), Math.round(currentDrawY), Math.round(colWidth), Math.round(rowHeight));
+                    this._ctx.strokeRect(Math.round(currentDrawX), Math.round(currentDrawY), Math.round(colWidth), Math.round(rowHeight));
+                }
+                currentDrawX += colWidth;
             }
-            y += rowHeight;
+            currentDrawY += rowHeight;
         }
-        
-        this._ctx.lineWidth = 1;
+        this._ctx.lineWidth = 1; // Reset
     }
 
     /**
@@ -767,62 +918,59 @@ export default class Canvas {
      * @param {number} y - Y coordinate
      * @returns {object | null} Cell coordinates or null if outside grid
      */
-    private getCellAtPosition(x: number, y: number): { row: number, col: number } | null {
-        if (x < this._headerWidth || y < this._headerHeight) {
+    private getCellAtPosition(viewX: number, viewY: number): { row: number, col: number } | null {
+        // viewX, viewY are coordinates relative to the canvas element (scaled by DPR but not by app zoom)
+        const logicalX = this._scrollX + viewX / this._zoomLevel;
+        const logicalY = this._scrollY + viewY / this._zoomLevel;
+
+        const scaledHeaderWidth = this._headerWidth; // Logical header width is unscaled
+        const scaledHeaderHeight = this._headerHeight; // Logical header height is unscaled
+
+        if (logicalX < scaledHeaderWidth || logicalY < scaledHeaderHeight) {
             return null;
         }
         
-        const col = this.getColumnAtX(x);
-        const row = this.getRowAtY(y);
+        const col = this.getColumnAtX(logicalX);
+        const row = this.getRowAtY(logicalY);
         
         return (row >= 0 && col >= 0) ? { row, col } : null;
     }
 
     /**
-     * Gets column index at a specific X coordinate
-     * @param {number} x - X coordinate
+     * Gets column index at a specific logical X coordinate
+     * @param {number} logicalX - Logical X coordinate (scrolled and unzoomed)
      * @returns {number} Column index or -1 if not found
      */
-    private getColumnAtX(x: number): number {
-        const { startCol } = this._visibleRange;
+    private getColumnAtX(logicalX: number): number {
         const columns = this._dataManager.columns;
+        let currentX = this._headerWidth; // Start after row header (logical)
         
-        const startX = this._headerWidth + 
-            columns.slice(0, startCol).reduce((sum, col) => sum + col.width, 0) - this._scrollX;
-        
-        let currentX = startX;
-        for (let col = startCol; col < columns.length; col++) {
-            const width = columns[col].width;
-            if (x >= currentX && x < currentX + width) {
+        for (let col = 0; col < columns.length; col++) {
+            const width = columns[col].width; // Unscaled width
+            if (logicalX >= currentX && logicalX < currentX + width) {
                 return col;
             }
             currentX += width;
         }
-        
         return -1;
     }
 
     /**
-     * Gets row index at a specific Y coordinate
-     * @param {number} y - Y coordinate
+     * Gets row index at a specific logical Y coordinate
+     * @param {number} logicalY - Logical Y coordinate (scrolled and unzoomed)
      * @returns {number} Row index or -1 if not found
      */
-    private getRowAtY(y: number): number {
-        const { startRow } = this._visibleRange;
+    private getRowAtY(logicalY: number): number {
         const rows = this._dataManager.rows;
-        
-        const startY = this._headerHeight + 
-            rows.slice(0, startRow).reduce((sum, row) => sum + row.height, 0) - this._scrollY;
-        
-        let currentY = startY;
-        for (let row = startRow; row < rows.length; row++) {
-            const height = rows[row].height;
-            if (y >= currentY && y < currentY + height) {
+        let currentY = this._headerHeight; // Start after column header (logical)
+
+        for (let row = 0; row < rows.length; row++) {
+            const height = rows[row].height; // Unscaled height
+            if (logicalY >= currentY && logicalY < currentY + height) {
                 return row;
             }
             currentY += height;
         }
-        
         return -1;
     }
 
@@ -832,42 +980,45 @@ export default class Canvas {
      * @param {number} y - Y coordinate
      * @returns {object | null} Resize handle info or null
      */
-    private getResizeHandle(x: number, y: number): { type: 'column' | 'row', index: number } | null {
-        const tolerance = 5;
-        
-        // Check column resize handles
-        if (y <= this._headerHeight) {
-            const { startCol, endCol } = this._visibleRange;
+    private getResizeHandle(viewX: number, viewY: number): { type: 'column' | 'row', index: number } | null {
+        const tolerance = 5 / this._zoomLevel; // Unscale tolerance for comparison with logical coordinates or scale elements
+
+        const scaledHeaderHeight = this._headerHeight * this._zoomLevel;
+        const scaledHeaderWidth = this._headerWidth * this._zoomLevel;
+
+        // Check column resize handles (top header area)
+        if (viewY <= scaledHeaderHeight) {
             const columns = this._dataManager.columns;
+            let currentDrawX = scaledHeaderWidth - this._scrollX; // Drawing X of the first column header's left edge
             
-            const startX = this._headerWidth + 
-                columns.slice(0, startCol).reduce((sum, col) => sum + col.width, 0) - this._scrollX;
-            
-            let currentX = startX;
-            for (let col = startCol; col < endCol && col < columns.length; col++) {
-                const rightEdge = currentX + columns[col].width;
-                if (Math.abs(x - rightEdge) <= tolerance) {
-                    return { type: 'column', index: col };
+            for (let c = 0; c < columns.length; c++) {
+                const colWidthScaled = columns[c].width * this._zoomLevel;
+                const colRightEdgeDrawX = currentDrawX + colWidthScaled;
+                if (Math.abs(viewX - colRightEdgeDrawX) <= tolerance * this._zoomLevel) { // Compare viewX with scaled edge
+                     if (currentDrawX < this._viewportWidth && colRightEdgeDrawX > 0) { // Only if handle is visible
+                        return { type: 'column', index: c };
+                    }
                 }
-                currentX += columns[col].width;
+                if (colRightEdgeDrawX > this._viewportWidth + tolerance * this._zoomLevel) break; // Optimization: stop if way off screen
+                currentDrawX = colRightEdgeDrawX;
             }
         }
         
-        // Check row resize handles
-        if (x <= this._headerWidth) {
-            const { startRow, endRow } = this._visibleRange;
+        // Check row resize handles (left header area)
+        if (viewX <= scaledHeaderWidth) {
             const rows = this._dataManager.rows;
-            
-            const startY = this._headerHeight + 
-                rows.slice(0, startRow).reduce((sum, row) => sum + row.height, 0) - this._scrollY;
-            
-            let currentY = startY;
-            for (let row = startRow; row < endRow && row < rows.length; row++) {
-                const bottomEdge = currentY + rows[row].height;
-                if (Math.abs(y - bottomEdge) <= tolerance) {
-                    return { type: 'row', index: row };
+            let currentDrawY = scaledHeaderHeight - this._scrollY; // Drawing Y of the first row header's top edge
+
+            for (let r = 0; r < rows.length; r++) {
+                const rowHeightScaled = rows[r].height * this._zoomLevel;
+                const rowBottomEdgeDrawY = currentDrawY + rowHeightScaled;
+                 if (Math.abs(viewY - rowBottomEdgeDrawY) <= tolerance * this._zoomLevel) { // Compare viewY with scaled edge
+                    if (currentDrawY < this._viewportHeight && rowBottomEdgeDrawY > 0) { // Only if handle is visible
+                        return { type: 'row', index: r };
+                    }
                 }
-                currentY += rows[row].height;
+                if (rowBottomEdgeDrawY > this._viewportHeight + tolerance * this._zoomLevel) break; // Optimization
+                currentDrawY = rowBottomEdgeDrawY;
             }
         }
         
@@ -884,30 +1035,28 @@ export default class Canvas {
             this.commitCellEdit();
         }
         
-        const cellRect = this.getCellRect(row, col);
-        if (!cellRect) return;
+        const cellRect = this.getCellRect(row, col); // cellRect is already scaled and positioned for view
+        if (!cellRect || cellRect.width <=0 || cellRect.height <= 0) return; // Don't edit if not visible or too small
         
         this._cellInput = document.createElement('input');
         this._cellInput.type = 'text';
         this._cellInput.className = 'cell-input';
         this._cellInput.value = this._dataManager.getCellValue(row, col);
-
-        const wrapperRect = this._wrapper.getBoundingClientRect();
         
-        // Position the input relative to the wrapper, accounting for scroll
         this._cellInput.style.position = 'absolute';
-        this._cellInput.style.left = (wrapperRect.left + cellRect.x - 5) + 'px';
-        this._cellInput.style.top = (wrapperRect.top + cellRect.y - 7) + 'px';
-        this._cellInput.style.width = cellRect.width + 5 + 'px';
-        this._cellInput.style.height = cellRect.height + 5 + 'px';
-        this._cellInput.style.zIndex = '1000';
+        // cellRect.x and .y are view coordinates relative to the wrapper's content area (canvas area)
+        this._cellInput.style.left = (cellRect.x - 1) + 'px'; // -1 for border
+        this._cellInput.style.top = (cellRect.y - 1) + 'px';  // -1 for border
+        this._cellInput.style.width = (cellRect.width + 2) + 'px'; // +2 for borders
+        this._cellInput.style.height = (cellRect.height + 2) + 'px'; // +2 for borders
+        this._cellInput.style.fontSize = `${14 * this._zoomLevel}px`;
+        this._cellInput.style.zIndex = '100';
         
         // Store cell coordinates
         this._cellInput.dataset.row = row.toString();
         this._cellInput.dataset.col = col.toString();
         
-        // this._wrapper.appendChild(this._cellInput);
-        document.body.appendChild(this._cellInput);
+        this._wrapper.appendChild(this._cellInput); // Append to wrapper
 
         this._cellInput.focus();
         this._cellInput.select();
@@ -963,41 +1112,82 @@ export default class Canvas {
         const row = parseInt(this._cellInput.dataset.row!);
         const col = parseInt(this._cellInput.dataset.col!);
     
-        const cellRect = this.getCellRect(row, col);
-        if (cellRect) {
-            const wrapperRect = this._wrapper.getBoundingClientRect();
-    
-            this._cellInput.style.left = (wrapperRect.left + cellRect.x - 5) + 'px';
-            this._cellInput.style.top = (wrapperRect.top + cellRect.y - 7) + 'px';
+        const cellRect = this.getCellRect(row, col); // cellRect is already scaled for view
+        if (cellRect && cellRect.width > 0 && cellRect.height > 0) {
+            this._cellInput.style.left = (cellRect.x - 1) + 'px'; // -1 for border
+            this._cellInput.style.top = (cellRect.y - 1) + 'px';  // -1 for border
+            this._cellInput.style.width = (cellRect.width + 2) + 'px';
+            this._cellInput.style.height = (cellRect.height + 2) + 'px';
+            this._cellInput.style.fontSize = `${14 * this._zoomLevel}px`;
+            this._cellInput.style.display = 'block';
+        } else {
+            // If cell is scrolled out of view or too small, hide the input
+            this._cellInput.style.display = 'none';
         }
     }
     
 
     /**
-     * Gets the rectangle for a specific cell relative to the wrapper
+     * Gets the rectangle for a specific cell in *view coordinates* (scaled and scrolled).
+     * Used for positioning the cell editor.
      * @param {number} row - Row index
      * @param {number} col - Column index
-     * @returns {object | null} Cell rectangle or null if not visible
+     * @returns {object | null} Cell rectangle (x, y, width, height in view pixels) or null if not valid
      */
     private getCellRect(row: number, col: number): { x: number, y: number, width: number, height: number } | null {
         const columns = this._dataManager.columns;
         const rows = this._dataManager.rows;
         
-        if (row >= rows.length || col >= columns.length) {
+        if (row < 0 || row >= rows.length || col < 0 || col >= columns.length) {
             return null;
         }
         
-        // Calculate position relative to wrapper (accounting for scroll)
-        const x = this._headerWidth + 
-            columns.slice(0, col).reduce((sum, c) => sum + c.width, 0) - this._scrollX;
-        const y = this._headerHeight + 
-            rows.slice(0, row).reduce((sum, r) => sum + r.height, 0) - this._scrollY;
+        const scaledHeaderWidth = this._headerWidth * this._zoomLevel;
+        const scaledHeaderHeight = this._headerHeight * this._zoomLevel;
+
+        // Calculate logical (unzoomed, unscrolled) position of cell's top-left corner
+        const logicalCellX = this._headerWidth + columns.slice(0, col).reduce((sum, c) => sum + c.width, 0);
+        const logicalCellY = this._headerHeight + rows.slice(0, row).reduce((sum, r) => sum + r.height, 0);
+
+        // Convert to view coordinates (scaled and scrolled)
+        const viewX = (logicalCellX * this._zoomLevel) - (this._scrollX * this._zoomLevel) + (scaledHeaderWidth - this._scrollX * this._zoomLevel) - scaledHeaderWidth ; // this is getting complex, simplify
+        // Simpler:
+        // viewX = (sum of widths of cols before it, scaled) + scaledHeaderWidth - scrollX_scaled
+        // viewX = ( (sum of logical widths of cols before 'col') + logicalHeaderWidth ) * zoomLevel - scrollX_zoomed
+
+        let cellViewX = scaledHeaderWidth;
+        for(let i=0; i<col; i++) {
+            cellViewX += columns[i].width * this._zoomLevel;
+        }
+        cellViewX -= this._scrollX; // scrollX is unzoomed, but it operates on a virtually scaled world.
+                                    // The drawing coordinates are relative to canvas, so subtract scaled scroll.
+                                    // Let's rethink: scrollX is the unzoomed offset.
+                                    // The position of col 0 on screen is: scaledHeaderWidth - (this._scrollX * this._zoomLevel)
+                                    // No, scrollX is the offset of the *unzoomed* content.
+                                    // So, the on-screen position of an item at logicalX is:
+                                    // (logicalX * this._zoomLevel) - (this._scrollX * this._zoomLevel)
+
+        const scaledHeaderWidth = this._headerWidth * this._zoomLevel;
+        const scaledHeaderHeight = this._headerHeight * this._zoomLevel;
+
+        const cellWidthScaled = columns[col].width * this._zoomLevel;
+        const cellHeightScaled = rows[row].height * this._zoomLevel;
+
+        let cellViewX = scaledHeaderWidth - this._scrollX;
+        for (let i = 0; i < col; i++) {
+            cellViewX += columns[i].width * this._zoomLevel;
+        }
+
+        let cellViewY = scaledHeaderHeight - this._scrollY;
+        for (let i = 0; i < row; i++) {
+            cellViewY += rows[i].height * this._zoomLevel;
+        }
         
         return {
-            x,
-            y,
-            width: columns[col].width,
-            height: rows[row].height
+            x: cellViewX,
+            y: cellViewY,
+            width: cellWidthScaled,
+            height: cellHeightScaled
         };
     }
 
