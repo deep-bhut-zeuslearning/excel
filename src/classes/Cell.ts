@@ -18,6 +18,15 @@ export default class Cell {
     /** @type {boolean} Whether this cell is currently selected */
     private _selected: boolean;
 
+    /** @type {number | null} Font size for this cell, null for default */
+    private _fontSize: number | null;
+
+    /** @type {'left' | 'center' | 'right' | null} Horizontal alignment for this cell */
+    private _horizontalAlignment: 'left' | 'center' | 'right' | null;
+
+    /** @type {'top' | 'middle' | 'bottom' | null} Vertical alignment for this cell */
+    private _verticalAlignment: 'top' | 'middle' | 'bottom' | null;
+
     /**
      * Initializes a new Cell instance
      * @param {number} row - The row index (0-based)
@@ -31,6 +40,9 @@ export default class Cell {
         this._value = value;
         this._formula = formula || value;
         this._selected = false;
+        this._fontSize = null;
+        this._horizontalAlignment = null; // Default (left)
+        this._verticalAlignment = null;   // Default (middle)
     }
 
     /**
@@ -120,6 +132,54 @@ export default class Cell {
     }
 
     /**
+     * Gets the font size of this cell
+     * @returns {number | null} The font size, or null if default
+     */
+    get fontSize(): number | null {
+        return this._fontSize;
+    }
+
+    /**
+     * Sets the font size for this cell
+     * @param {number | null} size - The new font size, or null for default
+     */
+    set fontSize(size: number | null) {
+        this._fontSize = size;
+    }
+
+    /**
+     * Gets the horizontal alignment of this cell
+     * @returns {'left' | 'center' | 'right' | null} The horizontal alignment, or null if default
+     */
+    get horizontalAlignment(): 'left' | 'center' | 'right' | null {
+        return this._horizontalAlignment;
+    }
+
+    /**
+     * Sets the horizontal alignment for this cell
+     * @param {'left' | 'center' | 'right' | null} alignment - The new horizontal alignment, or null for default
+     */
+    set horizontalAlignment(alignment: 'left' | 'center' | 'right' | null) {
+        this._horizontalAlignment = alignment;
+    }
+
+    /**
+     * Gets the vertical alignment of this cell
+     * @returns {'top' | 'middle' | 'bottom' | null} The vertical alignment, or null if default
+     */
+    get verticalAlignment(): 'top' | 'middle' | 'bottom' | null {
+        return this._verticalAlignment;
+    }
+
+    /**
+     * Sets the vertical alignment for this cell
+     * @param {'top' | 'middle' | 'bottom' | null} alignment - The new vertical alignment, or null for default
+     */
+    set verticalAlignment(alignment: 'top' | 'middle' | 'bottom' | null) {
+        this._verticalAlignment = alignment;
+    }
+
+    /**
      * Checks if this cell contains a numeric value
      * @returns {boolean} True if the value can be parsed as a number
      */
@@ -150,6 +210,9 @@ export default class Cell {
     clone(): Cell {
         const cloned = new Cell(this._row, this._col, this._value, this._formula);
         cloned._selected = this._selected;
+        cloned._fontSize = this._fontSize;
+        cloned._horizontalAlignment = this._horizontalAlignment;
+        cloned._verticalAlignment = this._verticalAlignment;
         return cloned;
     }
 
