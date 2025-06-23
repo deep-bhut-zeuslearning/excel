@@ -42,6 +42,15 @@ export default class ExcelGrid {
     /** @type {HTMLElement} Loading overlay element */
     private _loadingOverlay!: HTMLElement;
 
+    /** @type {number} Current font size */
+    private _fontSize: number = 14;
+
+    /** @type {'left' | 'center' | 'right' | null} Current horizontal alignment */
+    private _horizontalAlignment: 'left' | 'center' | 'right' | null = null;
+
+    /** @type {'top' | 'middle' | 'bottom' | null} Current vertical alignment */        
+    private _verticalAlignment: 'top' | 'middle' | 'bottom' | null = null;
+
     /**
      * Initializes a new ExcelGrid instance
      */
@@ -82,7 +91,7 @@ export default class ExcelGrid {
         this._selection = new Selection(100000, 500);
         
         // Initialize canvas for rendering
-        this._canvas = new Canvas(this._canvasWrapper, this._dataManager, this._selection);
+        this._canvas = new Canvas(this._canvasWrapper, this._dataManager, this._selection, this._horizontalAlignment, this._verticalAlignment, this._fontSize);
         
         // Initialize statistics calculator
         this._statisticsCalculator = new StatisticsCalculator(this._dataManager);
@@ -104,17 +113,17 @@ export default class ExcelGrid {
             <div class="toolbar-separator"></div>
             
             <div class="toolbar-group">
-                <label for="file-input" class="file-input-label">📁 Load JSON</label>
+                <label for="file-input" class="file-input-label">Load JSON</label>
                 <input type="file" id="file-input" class="file-input" accept=".json">
-                <button class="toolbar-button" id="generate-data-btn">🎲 Generate Sample Data</button>
-                <button class="toolbar-button" id="clear-data-btn">🗑️ Clear All</button>
+                <button class="toolbar-button" id="generate-data-btn"> Generate Sample Data</button>
+                <button class="toolbar-button" id="clear-data-btn"> Clear All</button>
             </div>
             
             <div class="toolbar-separator"></div>
             
             <div class="toolbar-group">
-                <button class="toolbar-button" id="select-all-btn">📋 Select All</button>
-                <button class="toolbar-button" id="clear-selection-btn">❌ Clear Selection</button>
+                <button class="toolbar-button" id="select-all-btn"> Select All</button>
+                <button class="toolbar-button" id="clear-selection-btn"> Clear Selection</button>
             </div>
 
             <div class="toolbar-separator"></div>
@@ -128,7 +137,7 @@ export default class ExcelGrid {
 
             <div class="toolbar-group">
                 <label for="font-size-input" class="toolbar-label">Font Size:</label>
-                <input type="number" id="font-size-input" class="toolbar-input" min="8" max="72" step="1" placeholder="14">
+                <input type="number" id="font-size-input" class="toolbar-input" min="8" max="72" step="1" >
             </div>
 
             <div class="toolbar-separator"></div>
@@ -215,17 +224,7 @@ export default class ExcelGrid {
         deleteRowBtn?.addEventListener('click', () => this.deleteSelectedRows());
         deleteColBtn?.addEventListener('click', () => this.deleteSelectedColumns());
 
-        // Font size input
-        const fontSizeInput = document.getElementById('font-size-input') as HTMLInputElement;
-        fontSizeInput?.addEventListener('change', (event) => {
-            const newSize = parseInt((event.target as HTMLInputElement).value);
-            if (!isNaN(newSize) && newSize >= 8 && newSize <= 72) {
-                this.setSelectedCellsFontSize(newSize);
-            } else if ((event.target as HTMLInputElement).value === '') {
-                // Allow clearing to reset to default
-                this.setSelectedCellsFontSize(null);
-            }
-        });
+        
         
         // Update button states periodically
         // Also update font size input based on selection
@@ -238,6 +237,7 @@ export default class ExcelGrid {
         // Alignment selects
         const hAlignSelect = document.getElementById('h-align-select') as HTMLSelectElement;
         hAlignSelect?.addEventListener('change', (event) => {
+            
             const newAlign = (event.target as HTMLSelectElement).value as 'left' | 'center' | 'right' | '';
             this.setSelectedCellsHorizontalAlignment(newAlign === '' ? null : newAlign);
         });
@@ -247,13 +247,24 @@ export default class ExcelGrid {
             const newAlign = (event.target as HTMLSelectElement).value as 'top' | 'middle' | 'bottom' | '';
             this.setSelectedCellsVerticalAlignment(newAlign === '' ? null : newAlign);
         });
+        
+        const fontSizeInput = document.getElementById('font-size-input') as HTMLInputElement;
+        fontSizeInput?.addEventListener('change', (event) => {
+            console.log("niggs");
+            
+            const newSize = parseInt((event.target as HTMLInputElement).value);
+            if (!isNaN(newSize) && newSize >= 8 && newSize <= 72) {
+                this.setSelectedCellsFontSize(newSize);
+            }
+        });
     }
-
     /**
      * Sets the font size for all currently selected cells.
      * @param {number | null} size - The font size to set, or null for default.
      */
     private setSelectedCellsFontSize(size: number | null): void {
+        console.log("here");
+        
         const selectedCoords = this._selection.getSelectedCells();
         if (selectedCoords.length > 0) {
             selectedCoords.forEach(({row, col}) => {
@@ -290,7 +301,6 @@ export default class ExcelGrid {
             }
         }
         this._canvas.redraw();
-        // TODO: Add to CommandManager
     }
 
     /**
@@ -312,7 +322,7 @@ export default class ExcelGrid {
             }
         } else {
             selectedCoords.forEach(({row, col}) => {
-                this._dataManager.setCellFontSize(row, col, size);
+                this._dataManager.setCellHorizontalAlignment(row, col, alignment);
             });
         }
         this._canvas.redraw();
@@ -330,6 +340,7 @@ export default class ExcelGrid {
         if (activeRange && activeRange.isSingleCell()) {
             const cell = this._dataManager.getCell(activeRange.startRow, activeRange.startCol);
             const currentSize = cell?.fontSize;
+            this._canvas.fontSize = currentSize ?? 14;
             if (currentSize !== null && currentSize !== undefined) {
                 fontSizeInput.value = currentSize.toString();
             } else {

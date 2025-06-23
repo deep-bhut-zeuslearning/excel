@@ -40,6 +40,15 @@ export default class Canvas {
     
     /** @type {number} Current vertical scroll position */
     private _scrollY: number = 0;
+
+    /** @type {'left' | 'center' | 'right' | null} Current horizontal alignment */
+    private _horizontalAlignment: 'left' | 'center' | 'right' | null = null;
+    
+    /** @type {'top' | 'middle' | 'bottom' | null} Current vertical alignment */
+    private _verticalAlignment: 'top' | 'middle' | 'bottom' | null = null;
+
+    /** @type {number} Current font size */
+    fontSize: number = 14;
     
     /** @type {object} Cache of visible cell range for performance */
     private _visibleRange = {
@@ -79,7 +88,7 @@ export default class Canvas {
      * @param {DataManager} dataManager - Data manager instance
      * @param {Selection} selection - Selection manager instance
      */
-    constructor(container: HTMLElement, dataManager: DataManager, selection: Selection) {
+    constructor(container: HTMLElement, dataManager: DataManager, selection: Selection, horizontalAlignment: 'left' | 'center' | 'right' | null, verticalAlignment: 'top' | 'middle' | 'bottom' | null, fontSize: number) {
         this._dataManager = dataManager;
         this._selection = selection;
         
@@ -87,6 +96,10 @@ export default class Canvas {
         this._canvas = document.createElement('canvas');
         this._canvas.id = 'excel-canvas';
         this._ctx = this._canvas.getContext('2d')!;
+
+        this._horizontalAlignment = horizontalAlignment;
+        this._verticalAlignment = verticalAlignment;
+        this.fontSize = fontSize;
         
         // Set up wrapper
         this._wrapper = container;
@@ -715,8 +728,8 @@ export default class Canvas {
         // Default font settings
         const defaultFontSize = 14;
         const defaultFontFamily = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-        const defaultHAlign = 'left';
-        const defaultVAlign = 'middle';
+        const defaultHAlign = this._horizontalAlignment ?? 'left';
+        const defaultVAlign = this._verticalAlignment ?? 'middle';
         const cellPadding = 4; // Padding inside cells for text
 
         this._ctx.fillStyle = '#212529';
@@ -732,11 +745,11 @@ export default class Canvas {
                 const value = cell ? cell.value : '';
                 
                 if (value) {
-                    const fontSize = cell?.fontSize ?? defaultFontSize;
+                    const fontSize = this.fontSize ?? defaultFontSize;
                     this._ctx.font = `${fontSize}px ${defaultFontFamily}`;
 
                     // Clip text to cell boundaries
-                    const fontSize = cell?.fontSize ?? defaultFontSize;
+                    // const fontSize = cell?.fontSize ?? defaultFontSize;
                     const hAlign = cell?.horizontalAlignment ?? defaultHAlign;
                     const vAlign = cell?.verticalAlignment ?? defaultVAlign;
                     this._ctx.font = `${fontSize}px ${defaultFontFamily}`;
