@@ -340,7 +340,7 @@ export default class DataManager {
             
             if (row >= index) {
                 const newKey = this.getCellKey(row + 1, col);
-                cell.row = row + 1;
+                cell.setRow(row + 1);
                 newCells.set(newKey, cell);
             } else {
                 newCells.set(key, cell);
@@ -353,7 +353,7 @@ export default class DataManager {
         
         // Update row indices
         for (let i = index + 1; i < this._rows.length; i++) {
-            this._rows[i].index = i;
+            this._rows[i].setIndex(i);
         }
         
         this._rowCount++;
@@ -379,7 +379,7 @@ export default class DataManager {
             
             if (col >= index) {
                 const newKey = this.getCellKey(row, col + 1);
-                cell.col = col + 1;
+                cell.setCol(col + 1);
                 newCells.set(newKey, cell);
             } else {
                 newCells.set(key, cell);
@@ -392,7 +392,7 @@ export default class DataManager {
         
         // Update column indices
         for (let i = index + 1; i < this._columns.length; i++) {
-            this._columns[i].index = i;
+            this._columns[i].setIndex(i);
         }
         
         this._columnCount++;
@@ -421,7 +421,7 @@ export default class DataManager {
                 continue;
             } else if (row > index) {
                 const newKey = this.getCellKey(row - 1, col);
-                cell.row = row - 1;
+                cell.setRow(row - 1);
                 newCells.set(newKey, cell);
             } else {
                 newCells.set(key, cell);
@@ -434,7 +434,7 @@ export default class DataManager {
         
         // Update row indices
         for (let i = index; i < this._rows.length; i++) {
-            this._rows[i].index = i;
+            this._rows[i].setIndex(i);
         }
         
         this._rowCount--;

@@ -13,34 +13,34 @@ import DataGenerator from './DataGenerator';
  */
 export default class ExcelGrid {
     /** @type {DataManager} Manages grid data storage and retrieval */
-    private _dataManager: DataManager;
+    private _dataManager!: DataManager;
     
     /** @type {Selection} Manages cell selection state */
-    private _selection: Selection;
+    private _selection!: Selection;
     
     /** @type {Canvas} Handles grid rendering and user interactions */
-    private _canvas: Canvas;
+    private _canvas!: Canvas;
     
     /** @type {StatisticsCalculator} Calculates statistics for selected cells */
-    private _statisticsCalculator: StatisticsCalculator;
+    private _statisticsCalculator!: StatisticsCalculator;
     
     /** @type {CommandManager} Manages undo/redo operations */
-    private _commandManager: CommandManager;
+    private _commandManager!: CommandManager;
     
     /** @type {HTMLElement} Main application container */
-    private _container: HTMLElement;
+    private _container!: HTMLElement;
     
     /** @type {HTMLElement} Toolbar container */
-    private _toolbar: HTMLElement;
+    private _toolbar!: HTMLElement;
     
     /** @type {HTMLElement} Statistics bar container */
-    private _statisticsBar: HTMLElement;
+    private _statisticsBar!: HTMLElement;
     
     /** @type {HTMLElement} Canvas wrapper container */
-    private _canvasWrapper: HTMLElement;
+    private _canvasWrapper!: HTMLElement;
     
     /** @type {HTMLElement} Loading overlay element */
-    private _loadingOverlay: HTMLElement;
+    private _loadingOverlay!: HTMLElement;
 
     /**
      * Initializes a new ExcelGrid instance
@@ -246,7 +246,7 @@ export default class ExcelGrid {
      * Updates the statistics bar with current selection information
      */
     private updateStatistics(): void {
-        const stats = this._statisticsCalculator.calculateForSelection(this._selection, 10000);
+        const stats = this._statisticsCalculator.calculateForSelection(this._selection, 100000);
         
         this._statisticsBar.innerHTML = `
             <div class="stat-item">
@@ -341,7 +341,7 @@ export default class ExcelGrid {
                 console.error('Failed to generate sample data:', error);
                 this.hideLoading();
             }
-        }, 100);
+        }, 1000);
     }
 
     /**

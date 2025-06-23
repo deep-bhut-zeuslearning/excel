@@ -19,7 +19,7 @@ export default class Row {
     private readonly _minHeight: number = 20;
     
     /** @type {number} The maximum allowed height for this row */
-    private readonly _maxHeight: number = 200;
+    private readonly _maxHeight: number = 2000;
 
     /**
      * Initializes a new Row instance
@@ -39,6 +39,14 @@ export default class Row {
      */
     get index(): number {
         return this._index;
+    }
+
+    /**
+     * Sets the index of this row
+     * @param {number} index - The new index
+     */
+    setIndex(index: number) {
+        this._index = index;
     }
 
     /**
