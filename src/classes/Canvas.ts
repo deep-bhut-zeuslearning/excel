@@ -617,9 +617,10 @@ export default class Canvas {
             this.updateVisibleRange();
             this.clearCanvas();
             this.drawGrid();
-            this.drawHeaders();
+            // this.drawHeaders(); // Called later
             this.drawCells();
             this.drawSelection();
+            this.drawHeaders(); // Draw headers last to ensure they are on top
         } finally {
             this._isDrawing = false;
         }
@@ -707,22 +708,26 @@ export default class Canvas {
         const scaledHeaderHeight = this._headerHeight * this._zoomLevel;
         
         this._ctx.strokeStyle = '#e0e0e0';
-        this._ctx.lineWidth = 1;
         this._ctx.beginPath();
+
+        const isZoomed = this._zoomLevel !== 1;
+        const lineWidth = isZoomed ? 1 / this._zoomLevel : 1;
+        this._ctx.lineWidth = lineWidth;
+        const offset = isZoomed ? 0 : 0.5;
         
         // Calculate starting X position for drawing (on-screen coordinate)
         let currentDrawX = scaledHeaderWidth - this._scrollX +
             columns.slice(0, startCol).reduce((sum, col) => sum + col.width * this._zoomLevel, 0);
         
         for (let c = startCol; c <= endCol && c < columns.length; c++) {
-            const xPos = Math.round(currentDrawX) + 0.5;
+            const xPos = Math.round(currentDrawX) + offset;
             this._ctx.moveTo(xPos, 0);
             this._ctx.lineTo(xPos, this._viewportHeight);
             currentDrawX += columns[c].width * this._zoomLevel;
         }
         // Last vertical line if endCol is last column
-        if(endCol === columns.length -1) {
-             const xPos = Math.round(currentDrawX);
+        if(endCol === columns.length -1 && currentDrawX <= this._viewportWidth) { // Ensure it's within viewport
+             const xPos = Math.round(currentDrawX) + offset;
              this._ctx.moveTo(xPos, 0);
              this._ctx.lineTo(xPos, this._viewportHeight);
         }
@@ -733,14 +738,14 @@ export default class Canvas {
             rows.slice(0, startRow).reduce((sum, row) => sum + row.height * this._zoomLevel, 0);
 
         for (let r = startRow; r <= endRow && r < rows.length; r++) {
-            const yPos = Math.round(currentDrawY);
+            const yPos = Math.round(currentDrawY) + offset;
             this._ctx.moveTo(0, yPos);
             this._ctx.lineTo(this._viewportWidth, yPos);
             currentDrawY += rows[r].height * this._zoomLevel;
         }
          // Last horizontal line if endRow is last row
-        if(endRow === rows.length -1) {
-            const yPos = Math.round(currentDrawY);
+        if(endRow === rows.length -1 && currentDrawY <= this._viewportHeight) { // Ensure it's within viewport
+            const yPos = Math.round(currentDrawY) + offset;
             this._ctx.moveTo(0, yPos);
             this._ctx.lineTo(this._viewportWidth, yPos);
         }
@@ -1099,22 +1104,23 @@ export default class Canvas {
         this._cellInput.className = 'cell-input';
         this._cellInput.value = this._dataManager.getCellValue(row, col);
 
-        const wrapperRect = this._wrapper.getBoundingClientRect();  
+        const canvasRect = this._canvas.getBoundingClientRect(); // Get canvas position relative to viewport
         
-        this._cellInput.style.position = 'absolute';
-        // cellRect.x and .y are view coordinates relative to the wrapper's content area (canvas area)
-        this._cellInput.style.left = (wrapperRect.left + cellRect.x - 4) + 'px'; // -1 for border
-        this._cellInput.style.top = (wrapperRect.top + cellRect.y - 4) + 'px';  // -1 for border
-        this._cellInput.style.width = (cellRect.width) + 'px'; // +2 for borders
-        this._cellInput.style.height = (cellRect.height) + 'px'; // +2 for borders
-        this._cellInput.style.fontSize = `${14 * this._zoomLevel}px`;
+        this._cellInput.style.position = 'absolute'; // Position absolute in document body
+        // cellRect.x and .y are relative to canvas origin. Add canvas origin to get document position.
+        // Subtract 1px for the border of the input to align content areas if cellRect is outer boundary.
+        this._cellInput.style.left = (canvasRect.left + cellRect.x) + 'px';
+        this._cellInput.style.top = (canvasRect.top + cellRect.y) + 'px';
+        this._cellInput.style.width = cellRect.width + 'px';
+        this._cellInput.style.height = cellRect.height + 'px';
+        this._cellInput.style.fontSize = `${14 * this._zoomLevel}px`; // Scale font size
         this._cellInput.style.zIndex = '100';
         
         // Store cell coordinates
         this._cellInput.dataset.row = row.toString();
         this._cellInput.dataset.col = col.toString();
         
-        document.body.appendChild(this._cellInput); // Append to wrapper
+        document.body.appendChild(this._cellInput);
 
         this._cellInput.focus();
         this._cellInput.select();
@@ -1170,15 +1176,22 @@ export default class Canvas {
         const row = parseInt(this._cellInput.dataset.row!);
         const col = parseInt(this._cellInput.dataset.col!);
     
-        const cellRect = this.getCellRect(row, col);
+        const cellRect = this.getCellRect(row, col); // cellRect is in view coordinates relative to canvas origin
         if (cellRect) {
-            const wrapperRect = this._wrapper.getBoundingClientRect();
+            const canvasRect = this._canvas.getBoundingClientRect(); // Get current canvas position
     
-            this._cellInput.style.left = (wrapperRect.left + cellRect.x - 4) + 'px';
-            this._cellInput.style.top = (wrapperRect.top + cellRect.y - 4) + 'px';
+            this._cellInput.style.left = (canvasRect.left + cellRect.x) + 'px';
+            this._cellInput.style.top = (canvasRect.top + cellRect.y) + 'px';
+            this._cellInput.style.width = cellRect.width + 'px';
+            this._cellInput.style.height = cellRect.height + 'px';
+            this._cellInput.style.fontSize = `${14 * this._zoomLevel}px`; // Update font size
+        } else {
+            // Cell is not visible or invalid, hide/remove editor
+            if (this._cellInput) { // Check again because it might be cleared by another event
+                this.cancelCellEdit();
+            }
         }
     }
-    
 
     /**
      * Gets the rectangle for a specific cell in *view coordinates* (scaled and scrolled).
@@ -1190,55 +1203,33 @@ export default class Canvas {
     private getCellRect(row: number, col: number): { x: number, y: number, width: number, height: number } | null {
         const columns = this._dataManager.columns;
         const rows = this._dataManager.rows;
-        
+
         if (row < 0 || row >= rows.length || col < 0 || col >= columns.length) {
             return null;
         }
-        
-        const scaledHeaderWidth = this._headerWidth * this._zoomLevel;
-        const scaledHeaderHeight = this._headerHeight * this._zoomLevel;
-
-        // Calculate logical (unzoomed, unscrolled) position of cell's top-left corner
-        const logicalCellX = this._headerWidth + columns.slice(0, col).reduce((sum, c) => sum + c.width, 0);
-        const logicalCellY = this._headerHeight + rows.slice(0, row).reduce((sum, r) => sum + r.height, 0);
-
-        // Convert to view coordinates (scaled and scrolled)
-        const viewX = (logicalCellX * this._zoomLevel) - (this._scrollX * this._zoomLevel) + (scaledHeaderWidth - this._scrollX * this._zoomLevel) - scaledHeaderWidth ; // this is getting complex, simplify
-        // Simpler:
-        // viewX = (sum of widths of cols before it, scaled) + scaledHeaderWidth - scrollX_scaled
-        // viewX = ( (sum of logical widths of cols before 'col') + logicalHeaderWidth ) * zoomLevel - scrollX_zoomed
-
-        let cellViewX = scaledHeaderWidth;
-        for(let i=0; i<col; i++) {
-            cellViewX += columns[i].width * this._zoomLevel;
-        }
-        cellViewX -= this._scrollX; // scrollX is unzoomed, but it operates on a virtually scaled world.
-                                    // The drawing coordinates are relative to canvas, so subtract scaled scroll.
-                                    // Let's rethink: scrollX is the unzoomed offset.
-                                    // The position of col 0 on screen is: scaledHeaderWidth - (this._scrollX * this._zoomLevel)
-                                    // No, scrollX is the offset of the *unzoomed* content.
-                                    // So, the on-screen position of an item at logicalX is:
-                                    // (logicalX * this._zoomLevel) - (this._scrollX * this._zoomLevel)
-
-        // const scaledHeaderWidth = this._headerWidth * this._zoomLevel;
-        // const scaledHeaderHeight = this._headerHeight * this._zoomLevel;
 
         const cellWidthScaled = columns[col].width * this._zoomLevel;
         const cellHeightScaled = rows[row].height * this._zoomLevel;
 
-        cellViewX = scaledHeaderWidth - this._scrollX;
+        let logicalCellLeft = this._headerWidth;
         for (let i = 0; i < col; i++) {
-            cellViewX += columns[i].width * this._zoomLevel;
+            logicalCellLeft += columns[i].width;
         }
 
-        let cellViewY = scaledHeaderHeight - this._scrollY;
+        let logicalCellTop = this._headerHeight;
         for (let i = 0; i < row; i++) {
-            cellViewY += rows[i].height * this._zoomLevel;
+            logicalCellTop += rows[i].height;
         }
+
+        // Calculate viewX, viewY: the cell's top-left corner position on the canvas,
+        // considering scroll and zoom.
+        // (logicalPositionOfCell - logicalScrollOffset) * zoomLevel
+        const viewX = (logicalCellLeft - this._scrollX) * this._zoomLevel;
+        const viewY = (logicalCellTop - this._scrollY) * this._zoomLevel;
         
         return {
-            x: cellViewX,
-            y: cellViewY,
+            x: viewX,
+            y: viewY,
             width: cellWidthScaled,
             height: cellHeightScaled
         };
