@@ -34,6 +34,30 @@ export default class Selection {
     }
 
     /**
+     * Checks if any cell in a specific row is selected (but not necessarily the entire row).
+     * @param {number} rowIndex - The row index to check.
+     * @returns {boolean} True if any cell in the row is part of any selection range.
+     */
+    isCellSelectedInRow(rowIndex: number): boolean {
+        if (this.isRowSelected(rowIndex)) return true; // Entire row is selected
+        return this._ranges.some(range =>
+            rowIndex >= range.startRow && rowIndex <= range.endRow
+        );
+    }
+
+    /**
+     * Checks if any cell in a specific column is selected (but not necessarily the entire column).
+     * @param {number} colIndex - The column index to check.
+     * @returns {boolean} True if any cell in the column is part of any selection range.
+     */
+    isCellSelectedInColumn(colIndex: number): boolean {
+        if (this.isColumnSelected(colIndex)) return true; // Entire column is selected
+        return this._ranges.some(range =>
+            colIndex >= range.startCol && colIndex <= range.endCol
+        );
+    }
+
+    /**
      * Gets all selected ranges
      * @returns {CellRange[]} Array of selected ranges
      */

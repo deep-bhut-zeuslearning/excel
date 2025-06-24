@@ -2,6 +2,11 @@ import type DataManager from './DataManager';
 import type Selection from './Selection';
 import type Column from './Column';
 import type Row from './Row';
+import type CommandManager from './CommandManager'; // Added for undo/redo
+import CellEditCommand from './CellEditCommand'; // Added for undo/redo
+import ResizeCommand from './ResizeCommand'; // Added for undo/redo
+import { ClearCellsCommand } from './ClearCellsCommand'; // Added for undo/redo
+
 
 /**
  * Manages the HTML5 Canvas rendering for the Excel grid
@@ -19,6 +24,9 @@ export default class Canvas {
     
     /** @type {Selection} Reference to the selection manager */
     private _selection: Selection;
+
+    /** @type {CommandManager} Reference to the command manager */
+    private _commandManager: CommandManager; // Added for undo/redo
     
     /** @type {HTMLElement} The canvas wrapper element */
     private _wrapper: HTMLElement;
@@ -97,10 +105,12 @@ export default class Canvas {
      * @param {HTMLElement} container - Container element for the canvas
      * @param {DataManager} dataManager - Data manager instance
      * @param {Selection} selection - Selection manager instance
+     * @param {CommandManager} commandManager - Command manager instance
      */
-    constructor(container: HTMLElement, dataManager: DataManager, selection: Selection) {
+    constructor(container: HTMLElement, dataManager: DataManager, selection: Selection, commandManager: CommandManager) {
         this._dataManager = dataManager;
         this._selection = selection;
+        this._commandManager = commandManager; // Store command manager
         
         // Create canvas element
         this._canvas = document.createElement('canvas');
@@ -115,6 +125,13 @@ export default class Canvas {
         this.setupEventListeners();
         this.setupVirtualScrolling();
         this.scheduleRedraw();
+    }
+
+    /**
+     * Resets the zoom level to default (100%).
+     */
+    resetZoom(): void {
+        this.setZoom(1);
     }
 
     /**
@@ -470,9 +487,54 @@ export default class Canvas {
      */
     private handleMouseUp(event: MouseEvent): void {
         if (this._resizeState) {
+            // Create and execute ResizeCommand
+            const { type, index, originalSize } = this._resizeState;
+            let newSize;
+            if (type === 'column') {
+                newSize = this._dataManager.columns[index].width;
+            } else { // type === 'row'
+                newSize = this._dataManager.rows[index].height;
+            }
+
+            if (newSize !== originalSize) {
+            if (newSize !== originalSize) {
+                let command: ResizeCommand | null = null;
+                if (type === 'column') {
+                    const column = this._dataManager.getColumn(index);
+                    if (column) {
+                        // The ResizeCommand now takes (target, oldSize, newSize)
+                        // originalSize is from _resizeState, which is correct.
+                        // newSize is the final size after dragging.
+                        command = new ResizeCommand(column, originalSize, newSize);
+                    }
+                } else { // type === 'row'
+                    const row = this._dataManager.getRow(index);
+                    if (row) {
+                        command = new ResizeCommand(row, originalSize, newSize);
+                    }
+                }
+
+                if (command) {
+                    // The visual update in handleMouseMove was temporary.
+                    // The command's execute method will set the definitive size.
+                    // We might need to revert the visual change before executing the command if the command
+                    // itself doesn't set the state from oldSize to newSize but assumes it's already at newSize.
+                    // However, ResizeCommand.execute() *does* set target.width/height = _newSize.
+                    // And ResizeCommand.undo() sets it to _oldSize.
+                    // So, the current state of the column/row object in DataManager (already updated by mouseMove)
+                    // doesn't actually interfere with the command's logic, as the command stores old/new itself.
+                    this._commandManager.executeCommand(command);
+                } else {
+                    console.error("Failed to create ResizeCommand: target column/row not found.");
+                    // If command fails, ensure the direct visual change persists.
+                    // This part might be redundant if mouseMove has already set it, but safe.
+                    if (type === 'column' && this._dataManager.columns[index]) this._dataManager.columns[index].width = newSize;
+                    else if (type === 'row' && this._dataManager.rows[index]) this._dataManager.rows[index].height = newSize;
+                }
+            }
+
             this._resizeState = null;
             this._canvas.style.cursor = 'cell';
-            // Potentially add resize command to undo/redo stack here
         }
 
         if (this._isDraggingSelection) {
@@ -572,7 +634,14 @@ export default class Canvas {
                 break;
             
             case 'Delete':
-                this.deleteCellContents();
+                // this.deleteCellContents(); // Old direct method
+                const selectedCoords = this._selection.getSelectedCells(10000); // Use a reasonable limit
+                if (selectedCoords.length > 0) {
+                    const command = new ClearCellsCommand(this._dataManager, selectedCoords);
+                    this._commandManager.executeCommand(command);
+                    // Redraw is usually handled by command execution pipeline or caller
+                    this.scheduleRedraw();
+                }
                 handled = true;
                 break;
             
@@ -788,10 +857,28 @@ export default class Canvas {
                 continue;
             }
 
-            if (this._selection.isColumnSelected(c)) {
+            // Column Header Highlighting
+            const isColSelected = this._selection.isColumnSelected(c);
+            const isCellInColSelected = this._selection.isCellSelectedInColumn(c);
+            let highlightColHeader = false;
+
+            if (isColSelected) { // Entire column selected
+                highlightColHeader = true;
+            } else if (isCellInColSelected && !this._selection.isRowSelected(this._selection.activeRange?.startRow ?? -1)) {
+                // Cell selected in this column, and it's not part of a full row selection
+                // (full row selection will highlight all column headers anyway)
+                highlightColHeader = true;
+            }
+             // If a row is fully selected, all column headers should be highlighted
+            if (this._selection.ranges.some(range => range.isRowSelection)) {
+                highlightColHeader = true;
+            }
+
+
+            if (highlightColHeader) {
                 this._ctx.fillStyle = '#e3f2fd';
                 this._ctx.fillRect(Math.round(currentDrawX), 0, Math.round(width), Math.round(scaledHeaderHeight));
-                this._ctx.fillStyle = '#495057';
+                this._ctx.fillStyle = '#495057'; // Reset for text
             }
             
             this._ctx.strokeRect(Math.round(currentDrawX), 0, Math.round(width), Math.round(scaledHeaderHeight));
@@ -813,10 +900,26 @@ export default class Canvas {
                 continue;
             }
             
-            if (this._selection.isRowSelected(r)) {
+            // Row Header Highlighting
+            const isRowCompletelySelected = this._selection.isRowSelected(r);
+            const isCellInRowSelected = this._selection.isCellSelectedInRow(r);
+            let highlightRowHeader = false;
+
+            if (isRowCompletelySelected) { // Entire row selected
+                highlightRowHeader = true;
+            } else if (isCellInRowSelected && !this._selection.isColumnSelected(this._selection.activeRange?.startCol ?? -1)) {
+                // Cell selected in this row, and it's not part of a full col selection
+                 highlightRowHeader = true;
+            }
+            // If a column is fully selected, all row headers should be highlighted
+            if (this._selection.ranges.some(range => range.isColumnSelection)) {
+                highlightRowHeader = true;
+            }
+
+            if (highlightRowHeader) {
                 this._ctx.fillStyle = '#fff3e0';
                 this._ctx.fillRect(0, Math.round(currentDrawY), Math.round(scaledHeaderWidth), Math.round(height));
-                this._ctx.fillStyle = '#495057';
+                this._ctx.fillStyle = '#495057'; // Reset for text
             }
             
             this._ctx.strokeRect(0, Math.round(currentDrawY), Math.round(scaledHeaderWidth), Math.round(height));
@@ -826,7 +929,19 @@ export default class Canvas {
             currentDrawY += height;
         }
         
-        this._ctx.fillStyle = '#f8f9fa';
+        // Top-left corner box
+        const isAnyRowSelected = this._selection.ranges.some(r => r.isRowSelection);
+        const isAnyColSelected = this._selection.ranges.some(r => r.isColumnSelection);
+
+        if (isAnyRowSelected && isAnyColSelected) { // Both a full row and a full col are selected (e.g. select all)
+             this._ctx.fillStyle = '#d1eaff'; // A mix or distinct color
+        } else if (isAnyRowSelected) { // Only full row(s) selected, top-left takes column header color
+            this._ctx.fillStyle = '#e3f2fd';
+        } else if (isAnyColSelected) { // Only full col(s) selected, top-left takes row header color
+            this._ctx.fillStyle = '#fff3e0';
+        } else {
+            this._ctx.fillStyle = '#f8f9fa'; // Default
+        }
         this._ctx.fillRect(0,0, Math.round(scaledHeaderWidth), Math.round(scaledHeaderHeight));
         this._ctx.strokeRect(0, 0, Math.round(scaledHeaderWidth), Math.round(scaledHeaderHeight));
         this._ctx.lineWidth = 1; // Reset
@@ -1144,9 +1259,14 @@ export default class Canvas {
         
         const row = parseInt(this._cellInput.dataset.row!);
         const col = parseInt(this._cellInput.dataset.col!);
-        const value = this._cellInput.value;
-        
-        this._dataManager.setCellValue(row, col, value);
+        const newValue = this._cellInput.value;
+        const oldValue = this._dataManager.getCellValue(row, col); // Get old value for command
+
+        if (newValue !== oldValue) {
+            const command = new CellEditCommand(this._dataManager, row, col, oldValue, newValue);
+            this._commandManager.executeCommand(command);
+            // DataManager.setCellValue is called by command.execute()
+        }
         
         this._cellInput.remove();
         this._cellInput = null;
@@ -1233,19 +1353,6 @@ export default class Canvas {
             width: cellWidthScaled,
             height: cellHeightScaled
         };
-    }
-
-    /**
-     * Deletes contents of selected cells
-     */
-    private deleteCellContents(): void {
-        const selectedCells = this._selection.getSelectedCells(1000);
-        
-        for (const { row, col } of selectedCells) {
-            this._dataManager.setCellValue(row, col, '');
-        }
-        
-        this.scheduleRedraw();
     }
 
     /**

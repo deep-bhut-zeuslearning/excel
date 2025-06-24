@@ -6,6 +6,7 @@ import CommandManager from './CommandManager';
 import CellEditCommand from './CellEditCommand';
 import ResizeCommand from './ResizeCommand';
 import DataGenerator from './DataGenerator';
+import { DeleteRowColumnCommand } from './DeleteRowColumnCommand';
 
 /**
  * Main Excel Grid application class
@@ -81,8 +82,11 @@ export default class ExcelGrid {
         // Initialize selection manager
         this._selection = new Selection(100000, 500);
         
+        // Initialize command manager for undo/redo
+        this._commandManager = new CommandManager(100);
+
         // Initialize canvas for rendering
-        this._canvas = new Canvas(this._canvasWrapper, this._dataManager, this._selection);
+        this._canvas = new Canvas(this._canvasWrapper, this._dataManager, this._selection, this._commandManager);
         
         // Initialize statistics calculator
         this._statisticsCalculator = new StatisticsCalculator(this._dataManager);
@@ -127,8 +131,16 @@ export default class ExcelGrid {
             <div class="toolbar-separator"></div>
 
             <div class="toolbar-group">
+                <button class="toolbar-button" id="reset-zoom-btn" title="Reset Zoom (Ctrl+0)">🔍 Reset Zoom</button>
+            </div>
+
+            <div class="toolbar-separator"></div>
+
+            <div class="toolbar-group">
                 <button class="toolbar-button" id="insert-row-btn">➕ Insert Row</button>
                 <button class="toolbar-button" id="insert-col-btn">➕ Insert Column</button>
+                <button class="toolbar-button" id="delete-row-btn">➖ Delete Row</button>
+                <button class="toolbar-button" id="delete-col-btn">➖ Delete Column</button>
             </div>
         `;
         
@@ -245,6 +257,52 @@ export default class ExcelGrid {
             } else {
                 alert('Cannot insert column. Maximum column limit reached or invalid index.');
             }
+        });
+
+        // Delete Row/Column functionality
+        const deleteRowBtn = document.getElementById('delete-row-btn') as HTMLButtonElement;
+        deleteRowBtn.addEventListener('click', () => {
+            const activeRange = this._selection.activeRange;
+            if (activeRange) {
+                // For simplicity, delete the first row in the active selection.
+                // More complex logic could handle multiple selected rows.
+                const rowIndex = activeRange.startRow;
+                const command = new DeleteRowColumnCommand(this._dataManager, 'row', rowIndex);
+                if (this._commandManager.executeCommand(command)) {
+                    this._selection.clearSelection(); // Or adjust selection
+                    this._canvas.redraw();
+                    this.updateStatistics();
+                } else {
+                    alert('Cannot delete row. Minimum row limit reached or invalid index.');
+                }
+            } else {
+                alert('Select a row to delete.');
+            }
+        });
+
+        const deleteColBtn = document.getElementById('delete-col-btn') as HTMLButtonElement;
+        deleteColBtn.addEventListener('click', () => {
+            const activeRange = this._selection.activeRange;
+            if (activeRange) {
+                // For simplicity, delete the first column in the active selection.
+                const colIndex = activeRange.startCol;
+                const command = new DeleteRowColumnCommand(this._dataManager, 'column', colIndex);
+                if (this._commandManager.executeCommand(command)) {
+                    this._selection.clearSelection(); // Or adjust selection
+                    this._canvas.redraw();
+                    this.updateStatistics();
+                } else {
+                    alert('Cannot delete column. Minimum column limit reached or invalid index.');
+                }
+            } else {
+                alert('Select a column to delete.');
+            }
+        });
+
+        // Reset Zoom button
+        const resetZoomBtn = document.getElementById('reset-zoom-btn') as HTMLButtonElement;
+        resetZoomBtn.addEventListener('click', () => {
+            this._canvas.resetZoom();
         });
 
         // Update button states periodically

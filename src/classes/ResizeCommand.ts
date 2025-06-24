@@ -22,33 +22,36 @@ export default class ResizeCommand extends BaseCommand {
     /**
      * Initializes a new ResizeCommand instance for a column
      * @param {Column} column - The column to resize
+     * @param {number} oldWidth - Original width of the column
      * @param {number} newWidth - New width for the column
      */
-    constructor(column: Column, newWidth: number);
+    constructor(column: Column, oldWidth: number, newWidth: number);
     
     /**
      * Initializes a new ResizeCommand instance for a row
      * @param {Row} row - The row to resize
+     * @param {number} oldHeight - Original height of the row
      * @param {number} newHeight - New height for the row
      */
-    constructor(row: Row, newHeight: number);
+    constructor(row: Row, oldHeight: number, newHeight: number);
     
     /**
      * Initializes a new ResizeCommand instance
      * @param {Column | Row} target - The column or row to resize
+     * @param {number} oldSize - Original size (width for columns, height for rows)
      * @param {number} newSize - New size (width for columns, height for rows)
      */
-    constructor(target: Column | Row, newSize: number) {
+    constructor(target: Column | Row, oldSize: number, newSize: number) {
         const isColumn = 'width' in target;
         const type = isColumn ? 'column' : 'row';
         const identifier = isColumn ? (target as Column).getLabel() : (target as Row).getLabel();
         
-        super(`Resize ${type} ${identifier}`);
+        super(`Resize ${type} ${identifier} from ${oldSize} to ${newSize}`);
         
         this._type = type;
         this._target = target;
         this._newSize = newSize;
-        this._oldSize = isColumn ? (target as Column).width : (target as Row).height;
+        this._oldSize = oldSize; // Use the passed oldSize
     }
 
     /**
