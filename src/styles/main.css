@@ -172,15 +172,15 @@ html, body {
 /* Canvas element */
 #excel-canvas {
   cursor: cell;
+  margin-right: 120px;
   user-select: none;
   image-rendering: pixelated;
   image-rendering: -webkit-optimize-contrast;
-  /* background: red; */
 }
 
 /* Cell input overlay */
 .cell-input {
-  /* position: absolute; is now set dynamically via JS */
+  position: fixed;
   border: 1px solid #007bff; /* Slightly thinner border */
   font-family: 'Segoe UI', Arial, sans-serif;
   font-size: 14px; /* Should match canvas font size for cells */

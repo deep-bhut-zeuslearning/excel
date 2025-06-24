@@ -127,6 +127,12 @@ export default class ExcelGrid {
             <div class="toolbar-separator"></div>
 
             <div class="toolbar-group">
+                <button class="toolbar-button" id="reset-zoom-btn">🔍 Reset Zoom</button>
+            </div>
+
+            <div class="toolbar-separator"></div>
+
+            <div class="toolbar-group">
                 <button class="toolbar-button" id="insert-row-btn">➕ Insert Row</button>
                 <button class="toolbar-button" id="insert-col-btn">➕ Insert Column</button>
             </div>
@@ -188,6 +194,10 @@ export default class ExcelGrid {
             this.updateStatistics();
         });
         
+        document.getElementById('reset-zoom-btn')?.addEventListener('click', () => {
+            this._canvas.resetZoom();
+        });
+
         // Find functionality
         const findInput = document.getElementById('find-input') as HTMLInputElement;
         const findBtn = document.getElementById('find-btn') as HTMLButtonElement;

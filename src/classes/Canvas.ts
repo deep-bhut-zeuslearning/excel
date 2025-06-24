@@ -115,6 +115,7 @@ export default class Canvas {
         this.setupEventListeners();
         this.setupVirtualScrolling();
         this.scheduleRedraw();
+
     }
 
     /**
@@ -154,7 +155,7 @@ export default class Canvas {
         this._canvas.style.cursor = 'cell';
         this._canvas.style.userSelect = 'none';
         this._canvas.style.pointerEvents = 'auto';
-        this._canvas.style.zIndex = '1';
+        this._canvas.style.zIndex = '0';
     }
 
     /**
@@ -162,15 +163,16 @@ export default class Canvas {
     */
     private updateCanvasSize(): void {
         // Use clientWidth and clientHeight to exclude scrollbars
-        this._viewportWidth = this._wrapper.clientWidth;
-        this._viewportHeight = this._wrapper.clientHeight;
+        this._viewportWidth = this._wrapper.clientWidth - 12;
+        this._viewportHeight = this._wrapper.clientHeight - 12;
+
         
         // Get bounding rect for positioning
         const rect = this._wrapper.getBoundingClientRect();
 
         // Set canvas style dimensions
-        this._canvas.style.width = this._viewportWidth -12 + 'px';
-        this._canvas.style.height = this._viewportHeight - 12 + 'px';
+        // this._canvas.style.width = this._viewportWidth;
+        // this._canvas.style.height = this._viewportHeight;
 
         // Position canvas to overlay the wrapper content area
         // This uses rect.left and rect.top which is fine for fixed positioning
@@ -289,7 +291,7 @@ export default class Canvas {
     /**
      * Sets the zoom level and redraws the canvas
      * @param {number} newZoomLevel - The new zoom level
-     */
+    */
     private setZoom(newZoomLevel: number): void {
         const oldZoomLevel = this._zoomLevel;
         this._zoomLevel = Math.max(this._minZoom, Math.min(this._maxZoom, newZoomLevel));
@@ -298,7 +300,7 @@ export default class Canvas {
             // Adjust scroll position to keep the center of the view fixed
             // This is a simplified approach; more sophisticated methods might zoom into the mouse pointer
             const centerX = this._scrollX + this._viewportWidth / 2;
-            const centerY = this._scrollY + this._viewportHeight / 2;
+            const centerY = this._scrollY + this._viewportHeight  / 2;
 
             const newScrollX = (centerX / oldZoomLevel) * this._zoomLevel - this._viewportWidth / 2;
             const newScrollY = (centerY / oldZoomLevel) * this._zoomLevel - this._viewportHeight / 2;
@@ -612,6 +614,12 @@ export default class Canvas {
     private draw(): void {
         if (this._isDrawing) return;
         this._isDrawing = true;
+
+        const dpr = window.devicePixelRatio || 1;
+        this._canvas.width = this._viewportWidth * dpr;
+        this._canvas.height = this._viewportHeight * dpr;
+
+        this._ctx.scale(dpr, dpr);
         
         try {
             this.updateVisibleRange();
@@ -700,6 +708,15 @@ export default class Canvas {
      * Draws the grid lines
      */
     private drawGrid(): void {
+
+        let dpr = window.devicePixelRatio || 1;
+
+        let isScreenZoomed = false;
+        if (dpr > 1) {
+            this._ctx.scale(dpr, dpr);
+            isScreenZoomed = true;
+        }
+        
         const { startRow, endRow, startCol, endCol } = this._visibleRange;
         const columns = this._dataManager.columns;
         const rows = this._dataManager.rows;
@@ -707,13 +724,14 @@ export default class Canvas {
         const scaledHeaderWidth = this._headerWidth * this._zoomLevel;
         const scaledHeaderHeight = this._headerHeight * this._zoomLevel;
         
-        this._ctx.strokeStyle = '#e0e0e0';
+        // this._ctx.strokeStyle = '#000000';
+        this._ctx.strokeStyle = '#c0c0c0';
         this._ctx.beginPath();
 
-        const isZoomed = this._zoomLevel !== 1;
-        const lineWidth = isZoomed ? 1 / this._zoomLevel : 1;
+        const lineWidth = 1 / this._zoomLevel * dpr;
+
         this._ctx.lineWidth = lineWidth;
-        const offset = isZoomed ? 0 : 0.5;
+        const offset =  0.5;
         
         // Calculate starting X position for drawing (on-screen coordinate)
         let currentDrawX = scaledHeaderWidth - this._scrollX +
@@ -757,6 +775,14 @@ export default class Canvas {
      * Draws column and row headers
      */
     private drawHeaders(): void {
+
+        const dpr = window.devicePixelRatio || 1;
+        let isScreenZoomed = false;
+        if (dpr > 1) {
+            this._ctx.scale(dpr, dpr);
+            isScreenZoomed = true;
+        }
+
         const { startCol, endCol, startRow, endRow } = this._visibleRange;
         const columns = this._dataManager.columns;
         const rows = this._dataManager.rows;
@@ -1114,7 +1140,7 @@ export default class Canvas {
         this._cellInput.style.width = cellRect.width + 'px';
         this._cellInput.style.height = cellRect.height + 'px';
         this._cellInput.style.fontSize = `${14 * this._zoomLevel}px`; // Scale font size
-        this._cellInput.style.zIndex = '100';
+        this._cellInput.style.zIndex = '1';
         
         // Store cell coordinates
         this._cellInput.dataset.row = row.toString();
@@ -1254,6 +1280,10 @@ export default class Canvas {
     redraw(): void {
         this.setupVirtualScrolling();
         this.scheduleRedraw();
+    }
+
+    resetZoom(): void {
+        this.setZoom(1);
     }
 
     /**

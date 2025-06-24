@@ -230,7 +230,7 @@ export default class DataManager {
         
         if (!cell) {
             cell = new Cell(row, col, '');
-            // Don't store empty cells in the map to save memory
+            // we will store empty cells in the map to save memory
         }
         
         return cell;
