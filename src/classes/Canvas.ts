@@ -497,7 +497,6 @@ export default class Canvas {
             }
 
             if (newSize !== originalSize) {
-            if (newSize !== originalSize) {
                 let command: ResizeCommand | null = null;
                 if (type === 'column') {
                     const column = this._dataManager.getColumn(index);
