@@ -817,10 +817,22 @@ export default class Canvas {
                 continue;
             }
 
+            if (this._selection.getSelectedCells().length > 0) {
+                this._selection.getSelectedCells().forEach((cell) => {
+                    if (cell.col === c) {
+                        this._ctx.fillStyle = '#caead8';
+                        this._ctx.fillRect(Math.round(currentDrawX), 0, Math.round(width), Math.round(scaledHeaderHeight));
+                        this._ctx.fillStyle = '#107c41';
+                        this._ctx.fillRect(Math.round(currentDrawX), scaledHeaderHeight, Math.round(width), Math.round(2));
+                        this._ctx.fillStyle = '#5E5E5E';
+                    }
+                });
+            }
+
             if (this._selection.isColumnSelected(c)) {
                 // Excel selected header background color
                 this._ctx.fillStyle = '#107c41';
-                this._ctx.fillRect(Math.round(currentDrawX), 0, Math.round(width), Math.round(scaledHeaderHeight));
+                this._ctx.fillRect(Math.round(currentDrawX - 1), 0, Math.round(width + 2), Math.round(scaledHeaderHeight));
                 // Reset to Excel header text color
                 this._ctx.fillStyle = '#5E5E5E';
             }
@@ -828,6 +840,11 @@ export default class Canvas {
             this._ctx.strokeRect(Math.round(currentDrawX), 0, Math.round(width), Math.round(scaledHeaderHeight));
             if (width > 10 * this._zoomLevel) { // Only draw text if there's enough space
                  this._ctx.fillText(label, Math.round(currentDrawX + width / 2), Math.round(scaledHeaderHeight / 2));
+                 if (this._selection.isColumnSelected(c)) {
+                    this._ctx.fillStyle = '#ffffff';
+                    this._ctx.fillText(label, Math.round(currentDrawX + width / 2), Math.round(scaledHeaderHeight / 2));
+                    this._ctx.fillStyle = '#5E5E5E';
+                 }
             }
             currentDrawX += width;
         }
@@ -843,10 +860,22 @@ export default class Canvas {
                 currentDrawY += height;
                 continue;
             }
+
+            if (this._selection.getSelectedCells().length > 0) {
+                this._selection.getSelectedCells().forEach((cell) => {
+                    if (cell.row === r) {
+                        this._ctx.fillStyle = '#caead8';
+                        this._ctx.fillRect(0, Math.round(currentDrawY), Math.round(scaledHeaderWidth), Math.round(height));
+                        this._ctx.fillStyle = '#107c41';
+                        this._ctx.fillRect(scaledHeaderWidth, Math.round(currentDrawY), Math.round(2), Math.round(height));
+                        this._ctx.fillStyle = '#5E5E5E';
+                    }
+                });
+            }
             
             if (this._selection.isRowSelected(r)) {
                 // Excel selected header background color
-                this._ctx.fillStyle = '#C6E0B4';
+                this._ctx.fillStyle = '#107c41';
                 this._ctx.fillRect(0, Math.round(currentDrawY), Math.round(scaledHeaderWidth), Math.round(height));
                 // Reset to Excel header text color
                 this._ctx.fillStyle = '#5E5E5E';
@@ -855,6 +884,11 @@ export default class Canvas {
             this._ctx.strokeRect(0, Math.round(currentDrawY), Math.round(scaledHeaderWidth), Math.round(height));
             if (height > 10 * this._zoomLevel) { // Only draw text if there's enough space
                 this._ctx.fillText(label, Math.round(scaledHeaderWidth / 2), Math.round(currentDrawY + height / 2));
+                if (this._selection.isRowSelected(r)) {
+                    this._ctx.fillStyle = '#ffffff';
+                    this._ctx.fillText(label, Math.round(scaledHeaderWidth / 2), Math.round(currentDrawY + height / 2));
+                    this._ctx.fillStyle = '#5E5E5E';
+                }
             }
             currentDrawY += height;
         }

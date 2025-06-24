@@ -24,7 +24,8 @@ html, body {
 /* Toolbar styling with gradient background */
 #toolbar {
   height: 60px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  /* background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); */
+  background: rgb(46, 120, 46);
   border-bottom: 1px solid #e9ecef;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   display: flex;
@@ -48,6 +49,7 @@ html, body {
   background: rgba(255, 255, 255, 0.2);
   border: 1px solid rgba(255, 255, 255, 0.3);
   border-radius: 8px;
+  /* color: white; */
   color: white;
   font-size: 14px;
   font-weight: 500;
