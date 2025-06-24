@@ -183,9 +183,9 @@ export default class Canvas {
         this._canvas.width = this._viewportWidth * dpr;
         this._canvas.height = this._viewportHeight * dpr;
 
-        if (dpr > 1) {
-            this._ctx.scale(dpr, dpr);
-        }
+        this._ctx.scale(dpr, dpr);
+        // if (dpr > 1) {
+        // }
     }
 
     /**
