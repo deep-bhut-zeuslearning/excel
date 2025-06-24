@@ -625,9 +625,9 @@ export default class Canvas {
             this.updateVisibleRange();
             this.clearCanvas();
             this.drawGrid();
+            this.drawSelection();
             // this.drawHeaders(); // Called later
             this.drawCells();
-            this.drawSelection();
             this.drawHeaders(); // Draw headers last to ensure they are on top
         } finally {
             this._isDrawing = false;
@@ -819,7 +819,7 @@ export default class Canvas {
 
             if (this._selection.isColumnSelected(c)) {
                 // Excel selected header background color
-                this._ctx.fillStyle = '#C6E0B4';
+                this._ctx.fillStyle = '#107c41';
                 this._ctx.fillRect(Math.round(currentDrawX), 0, Math.round(width), Math.round(scaledHeaderHeight));
                 // Reset to Excel header text color
                 this._ctx.fillStyle = '#5E5E5E';
@@ -974,10 +974,11 @@ export default class Canvas {
         const scaledHeaderHeight = this._headerHeight * this._zoomLevel;
 
         // Excel selected cell border color
-        this._ctx.strokeStyle = '#0078D4';
+        this._ctx.strokeStyle = '#168045';
+        // this._ctx.strokeStyle = '#000000';
         this._ctx.lineWidth = Math.max(1, 2 * this._zoomLevel); // Keep line width logic
         // Excel range selection background color
-        this._ctx.fillStyle = 'rgba(0, 120, 212, 0.1)';
+        this._ctx.fillStyle = 'rgb(233, 242, 237)';
         
         let currentDrawY = scaledHeaderHeight - this._scrollY +
             rows.slice(0, startRow).reduce((sum, r) => sum + r.height * this._zoomLevel, 0);
