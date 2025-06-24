@@ -725,7 +725,7 @@ export default class Canvas {
         const scaledHeaderHeight = this._headerHeight * this._zoomLevel;
         
         // this._ctx.strokeStyle = '#000000';
-        this._ctx.strokeStyle = '#c0c0c0';
+        this._ctx.strokeStyle = '#D0D7DE'; // Excel cell border color
         this._ctx.beginPath();
 
         const lineWidth = 1 / this._zoomLevel * dpr;
@@ -790,15 +790,18 @@ export default class Canvas {
         const scaledHeaderHeight = this._headerHeight * this._zoomLevel;
         const scaledHeaderWidth = this._headerWidth * this._zoomLevel;
         
-        this._ctx.fillStyle = '#f8f9fa';
+        // Excel header background color
+        this._ctx.fillStyle = '#F2F2F2';
         this._ctx.fillRect(0, 0, this._viewportWidth, scaledHeaderHeight);
         this._ctx.fillRect(0, 0, scaledHeaderWidth, this._viewportHeight);
         
-        this._ctx.fillStyle = '#495057';
+        // Excel header text color
+        this._ctx.fillStyle = '#5E5E5E';
         this._ctx.font = `${Math.round(12 * this._zoomLevel)}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
         this._ctx.textAlign = 'center';
         this._ctx.textBaseline = 'middle';
-        this._ctx.strokeStyle = '#dee2e6';
+        // Excel cell border color for header grid lines
+        this._ctx.strokeStyle = '#D0D7DE';
         this._ctx.lineWidth = Math.max(0.5, 1 / this._zoomLevel);
 
 
@@ -815,9 +818,11 @@ export default class Canvas {
             }
 
             if (this._selection.isColumnSelected(c)) {
-                this._ctx.fillStyle = '#e3f2fd';
+                // Excel selected header background color
+                this._ctx.fillStyle = '#C6E0B4';
                 this._ctx.fillRect(Math.round(currentDrawX), 0, Math.round(width), Math.round(scaledHeaderHeight));
-                this._ctx.fillStyle = '#495057';
+                // Reset to Excel header text color
+                this._ctx.fillStyle = '#5E5E5E';
             }
             
             this._ctx.strokeRect(Math.round(currentDrawX), 0, Math.round(width), Math.round(scaledHeaderHeight));
@@ -840,9 +845,11 @@ export default class Canvas {
             }
             
             if (this._selection.isRowSelected(r)) {
-                this._ctx.fillStyle = '#fff3e0';
+                // Excel selected header background color
+                this._ctx.fillStyle = '#C6E0B4';
                 this._ctx.fillRect(0, Math.round(currentDrawY), Math.round(scaledHeaderWidth), Math.round(height));
-                this._ctx.fillStyle = '#495057';
+                // Reset to Excel header text color
+                this._ctx.fillStyle = '#5E5E5E';
             }
             
             this._ctx.strokeRect(0, Math.round(currentDrawY), Math.round(scaledHeaderWidth), Math.round(height));
@@ -852,7 +859,8 @@ export default class Canvas {
             currentDrawY += height;
         }
         
-        this._ctx.fillStyle = '#f8f9fa';
+        // Excel header background color for the top-left corner box
+        this._ctx.fillStyle = '#F2F2F2';
         this._ctx.fillRect(0,0, Math.round(scaledHeaderWidth), Math.round(scaledHeaderHeight));
         this._ctx.strokeRect(0, 0, Math.round(scaledHeaderWidth), Math.round(scaledHeaderHeight));
         this._ctx.lineWidth = 1; // Reset
@@ -876,7 +884,12 @@ export default class Canvas {
         const defaultVAlign = 'middle';
         const cellPadding = 4; // Padding inside cells for text
 
-        this._ctx.fillStyle = '#212529';
+        // Ensure canvas is cleared to white for default cell background
+        // this.clearCanvas() handles this by default if it clears to white or transparent
+        // and the HTML page background is white.
+
+        // Excel cell text color
+        this._ctx.fillStyle = '#000000';
         this._ctx.font = `${Math.round(14 * this._zoomLevel)}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
         this._ctx.textBaseline = 'middle';
         this._ctx.textAlign = 'left';
@@ -960,9 +973,11 @@ export default class Canvas {
         const scaledHeaderWidth = this._headerWidth * this._zoomLevel;
         const scaledHeaderHeight = this._headerHeight * this._zoomLevel;
 
-        this._ctx.strokeStyle = '#007bff';
-        this._ctx.lineWidth = Math.max(1, 2 * this._zoomLevel);
-        this._ctx.fillStyle = 'rgba(0, 123, 255, 0.1)';
+        // Excel selected cell border color
+        this._ctx.strokeStyle = '#0078D4';
+        this._ctx.lineWidth = Math.max(1, 2 * this._zoomLevel); // Keep line width logic
+        // Excel range selection background color
+        this._ctx.fillStyle = 'rgba(0, 120, 212, 0.1)';
         
         let currentDrawY = scaledHeaderHeight - this._scrollY +
             rows.slice(0, startRow).reduce((sum, r) => sum + r.height * this._zoomLevel, 0);
