@@ -76,19 +76,26 @@ export default class ExcelGrid {
      */
     private initializeComponents(): void {
         // Initialize data manager with large capacity
-        this._dataManager = new DataManager(1000, 1000, 100000, 500);
+        this._dataManager = new DataManager(1000, 1000, 1000000, 5000);
         
         // Initialize selection manager
         this._selection = new Selection(100000, 500);
+
+               
+        // Initialize command manager for undo/redo
+        this._commandManager = new CommandManager(100);
         
         // Initialize canvas for rendering
-        this._canvas = new Canvas(this._canvasWrapper, this._dataManager, this._selection);
+        this._canvas = new Canvas(
+            this._canvasWrapper, 
+            this._dataManager, 
+            this._selection,
+            this._commandManager,
+        );
         
         // Initialize statistics calculator
         this._statisticsCalculator = new StatisticsCalculator(this._dataManager);
-        
-        // Initialize command manager for undo/redo
-        this._commandManager = new CommandManager(100);
+ 
     }
 
     /**

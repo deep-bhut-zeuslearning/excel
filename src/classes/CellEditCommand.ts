@@ -44,6 +44,7 @@ export default class CellEditCommand extends BaseCommand {
      */
     execute(): boolean {
         try {
+            console.log("from cell edit class");
             this._dataManager.setCellValue(this._row, this._col, this._newValue);
             return true;
         } catch (error) {

@@ -1,7 +1,10 @@
 import type DataManager from './DataManager';
 import type Selection from './Selection';
-import type Column from './Column';
+import Column from './Column';
 import type Row from './Row';
+import CommandManager from './CommandManager';
+import CellEditCommand from './CellEditCommand';
+import ResizeCommand from './ResizeCommand';
 
 /**
  * Manages the HTML5 Canvas rendering for the Excel grid
@@ -74,6 +77,7 @@ export default class Canvas {
         startX: number;
         startY: number;
         originalSize: number;
+        newSize?: number;
     } | null = null;
 
     /** @type {boolean} Whether a drag selection is in progress */
@@ -86,10 +90,15 @@ export default class Canvas {
     private _zoomLevel: number = 1;
 
     /** @type {number} Minimum zoom level */
-    private readonly _minZoom: number = 0.2;
+    private readonly _minZoom: number = 0.6;
 
     /** @type {number} Maximum zoom level */
     private readonly _maxZoom: number = 3;
+
+    /** @type {CommandManager} handles the exucution of all kind of commands white handling undoa and redo */
+    private _commandManager: CommandManager;
+
+
 
 
     /**
@@ -98,9 +107,14 @@ export default class Canvas {
      * @param {DataManager} dataManager - Data manager instance
      * @param {Selection} selection - Selection manager instance
      */
-    constructor(container: HTMLElement, dataManager: DataManager, selection: Selection) {
+    constructor(container: HTMLElement, 
+        dataManager: DataManager, 
+        selection: Selection,
+        commandManager: CommandManager,
+    ) {
         this._dataManager = dataManager;
         this._selection = selection;
+        this._commandManager = commandManager;
         
         // Create canvas element
         this._canvas = document.createElement('canvas');
@@ -434,12 +448,12 @@ export default class Canvas {
             const logicalDelta = delta / this._zoomLevel; // Convert view delta to logical delta
             const minLogicalSize = 20; // Minimum logical width/height for a cell
             const newSize = Math.max(minLogicalSize, this._resizeState.originalSize + logicalDelta);
-            
             if (this._resizeState.type === 'column') {
                 this._dataManager.columns[this._resizeState.index].width = newSize;
             } else {
                 this._dataManager.rows[this._resizeState.index].height = newSize;
             }
+            this._resizeState.newSize = newSize;
             
             this.setupVirtualScrolling();
             this.scheduleRedraw();
@@ -472,9 +486,16 @@ export default class Canvas {
      */
     private handleMouseUp(event: MouseEvent): void {
         if (this._resizeState) {
+            console.log(this._resizeState);
+            
+            if (this._resizeState.type === 'column') {
+                const col = this._dataManager.columns[this._resizeState.index];
+                this._commandManager.executeCommand(new ResizeCommand(col, this._resizeState.newSize!));
+            } else {
+                const row = this._dataManager.rows[this._resizeState.index];
+                this._commandManager.executeCommand(new ResizeCommand(row, this._resizeState.newSize!));
+            }
             this._resizeState = null;
-            this._canvas.style.cursor = 'cell';
-            // Potentially add resize command to undo/redo stack here
         }
 
         if (this._isDraggingSelection) {
@@ -1240,30 +1261,41 @@ export default class Canvas {
         
         // Event listeners
         this._cellInput.addEventListener('blur', () => this.commitCellEdit());
+
         this._cellInput.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') {
                 this.commitCellEdit();
-            } else if (e.key === 'Escape') {
+            } else if (e.key === 'Escape' ||e.key === 'ArrowUp' ||e.key === 'ArrowLeft' ||e.key === 'ArrowRight'||e.key === 'ArrowDown') {
+                this.cancelCellEdit();
+            } else if (e.key === 'ArrowDown') {
                 this.cancelCellEdit();
             }
         });
+
     }
 
     /**
      * Commits the current cell edit
      */
     private commitCellEdit(): void {
-        if (!this._cellInput) return;
-        
-        const row = parseInt(this._cellInput.dataset.row!);
-        const col = parseInt(this._cellInput.dataset.col!);
-        const value = this._cellInput.value;
-        
-        this._dataManager.setCellValue(row, col, value);
-        
-        this._cellInput.remove();
+        if (this._cellInput === null) return;
+
+        const input = this._cellInput;
         this._cellInput = null;
         
+        const row = parseInt(input.dataset.row!);
+        const col = parseInt(input.dataset.col!);
+        const value = input.value;
+        
+        // this._dataManager.setCellValue(row, col, value);
+        this._commandManager.executeCommand(
+            new CellEditCommand(
+                this._dataManager, row, col, value, this._dataManager.getCellValue(row, col)
+            )
+        )
+
+        input.remove();
+
         this.scheduleRedraw();
         this._canvas.focus();
     }
@@ -1272,7 +1304,7 @@ export default class Canvas {
      * Cancels the current cell edit
      */
     private cancelCellEdit(): void {
-        if (!this._cellInput) return;
+        if (this._cellInput === null) return;
         
         this._cellInput.remove();
         this._cellInput = null;

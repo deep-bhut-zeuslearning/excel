@@ -78,6 +78,8 @@ export default class CommandManager {
         if (this._paused) {
             return command.execute();
         }
+        console.log("executing");
+        
 
         try {
             const success = command.execute();
@@ -87,6 +89,7 @@ export default class CommandManager {
                 this._redoStack = []; // Clear redo stack when new command is executed
                 this.trimHistory();
             }
+            console.log(this._undoStack);
             
             return success;
         } catch (error) {
