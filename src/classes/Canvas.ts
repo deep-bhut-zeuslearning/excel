@@ -624,8 +624,8 @@ export default class Canvas {
         try {
             this.updateVisibleRange();
             this.clearCanvas();
-            this.drawGrid();
             this.drawSelection();
+            this.drawGrid();
             // this.drawHeaders(); // Called later
             this.drawCells();
             this.drawHeaders(); // Draw headers last to ensure they are on top
@@ -641,8 +641,8 @@ export default class Canvas {
         const columns = this._dataManager.columns;
         const rows = this._dataManager.rows;
 
-        const scaledHeaderWidth = this._headerWidth * this._zoomLevel;
-        const scaledHeaderHeight = this._headerHeight * this._zoomLevel;
+        // const scaledHeaderWidth = this._headerWidth * this._zoomLevel;
+        // const scaledHeaderHeight = this._headerHeight * this._zoomLevel;
 
         // Calculate visible columns
         // We are looking for the first column whose *left* edge is to the right of (scrollX - its own width)
@@ -998,6 +998,7 @@ export default class Canvas {
      * Draws selection highlights
      */
     private drawSelection(): void {
+        const dpr = window.devicePixelRatio || 1;
         if (!this._selection.hasSelection()) return;
         
         const { startRow, endRow, startCol, endCol } = this._visibleRange;
@@ -1008,45 +1009,81 @@ export default class Canvas {
         const scaledHeaderHeight = this._headerHeight * this._zoomLevel;
 
         // Excel selected cell border color
-        this._ctx.strokeStyle = '#168045';
+        this._ctx.strokeStyle = '#107c41';
         // this._ctx.strokeStyle = '#000000';
-        this._ctx.lineWidth = Math.max(1, 2 * this._zoomLevel); // Keep line width logic
+        // this._ctx.lineWidth = Math.max(1, 2 * this._zoomLevel); // Keep line width logic
         // Excel range selection background color
         this._ctx.fillStyle = 'rgb(233, 242, 237)';
-        
-        let currentDrawY = scaledHeaderHeight - this._scrollY +
-            rows.slice(0, startRow).reduce((sum, r) => sum + r.height * this._zoomLevel, 0);
 
-        for (let r = startRow; r <= endRow && r < rows.length; r++) {
-            const rowDef = rows[r];
-            const rowHeight = rowDef.height * this._zoomLevel;
 
-            if (currentDrawY + rowHeight < 0 || currentDrawY > this._viewportHeight) {
-                currentDrawY += rowHeight;
-                continue;
-            }
-            
-            let currentDrawX = scaledHeaderWidth - this._scrollX +
-                columns.slice(0, startCol).reduce((sum, c) => sum + c.width * this._zoomLevel, 0);
+        this._ctx.lineWidth = 2 / this._zoomLevel * dpr;
+        const offset = 0.5;
 
-            for (let c = startCol; c <= endCol && c < columns.length; c++) {
-                const colDef = columns[c];
-                const colWidth = colDef.width * this._zoomLevel;
+        const selectedCells = this._selection.getSelectedCells();
 
-                if (currentDrawX + colWidth < 0 || currentDrawX > this._viewportWidth) {
-                    currentDrawX += colWidth;
-                    continue;
-                }
-                
-                if (this._selection.isSelected(r, c)) {
-                    this._ctx.fillRect(Math.round(currentDrawX), Math.round(currentDrawY), Math.round(colWidth), Math.round(rowHeight));
-                    this._ctx.strokeRect(Math.round(currentDrawX), Math.round(currentDrawY), Math.round(colWidth), Math.round(rowHeight));
-                }
-                currentDrawX += colWidth;
-            }
-            currentDrawY += rowHeight;
+        if (selectedCells.length === 0) return;
+
+        let minRow = Infinity, maxRow = -Infinity, minCol = Infinity, maxCol = -Infinity;
+        for (const { row, col } of selectedCells) {
+            minRow = Math.min(minRow, row);
+            maxRow = Math.max(maxRow, row);
+            minCol = Math.min(minCol, col);
+            maxCol = Math.max(maxCol, col);
         }
+
+        // Clamp within visible range
+        minRow = Math.max(minRow, startRow);
+        maxRow = Math.min(maxRow, endRow);
+        minCol = Math.max(minCol, startCol);
+        maxCol = Math.min(maxCol, endCol);
+
+        // Calculate top-left corner
+        let x = scaledHeaderWidth - this._scrollX +
+            columns.slice(0, minCol).reduce((sum, c) => sum + c.width * this._zoomLevel, 0);
+        let y = scaledHeaderHeight - this._scrollY +
+            rows.slice(0, minRow).reduce((sum, r) => sum + r.height * this._zoomLevel, 0);
+
+        // Calculate total width and height
+        let width = columns.slice(minCol, maxCol + 1).reduce((sum, c) => sum + c.width * this._zoomLevel, 0);
+        let height = rows.slice(minRow, maxRow + 1).reduce((sum, r) => sum + r.height * this._zoomLevel, 0);
+
+        // Draw filled background
+        this._ctx.fillRect(Math.round(x + offset), Math.round(y + offset), Math.round(width - 2 * offset), Math.round(height - 2 * offset));
+        // Draw single outer border
+        this._ctx.strokeRect(Math.round(x + offset), Math.round(y + offset), Math.round(width - 2 * offset), Math.round(height - 2 * offset));
+
         this._ctx.lineWidth = 1; // Reset
+
+        // for (let r = startRow; r <= endRow && r < rows.length; r++) {
+        //     const rowDef = rows[r];
+        //     const rowHeight = rowDef.height * this._zoomLevel;
+
+        //     if (currentDrawY + rowHeight < 0 || currentDrawY > this._viewportHeight) {
+        //         currentDrawY += rowHeight;
+        //         continue;
+        //     }
+            
+        //     let currentDrawX = scaledHeaderWidth - this._scrollX +
+        //         columns.slice(0, startCol).reduce((sum, c) => sum + c.width * this._zoomLevel, 0);
+
+        //     for (let c = startCol; c <= endCol && c < columns.length; c++) {
+        //         const colDef = columns[c];
+        //         const colWidth = colDef.width * this._zoomLevel;
+
+        //         if (currentDrawX + colWidth < 0 || currentDrawX > this._viewportWidth) {
+        //             currentDrawX += colWidth;
+        //             continue;
+        //         }
+                
+        //         if (this._selection.isSelected(r, c)) {
+        //             this._ctx.fillRect(Math.round(currentDrawX), Math.round(currentDrawY), Math.round(colWidth), Math.round(rowHeight));
+        //             this._ctx.strokeRect(Math.round(currentDrawX), Math.round(currentDrawY), Math.round(colWidth), Math.round(rowHeight));
+        //         }
+        //         currentDrawX += colWidth;
+        //     }
+        //     currentDrawY += rowHeight;
+        // }
+        // this._ctx.lineWidth = 1; // Reset
     }
 
     /**

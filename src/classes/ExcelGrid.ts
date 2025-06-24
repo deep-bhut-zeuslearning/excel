@@ -198,6 +198,14 @@ export default class ExcelGrid {
             this._canvas.resetZoom();
         });
 
+        document.body.addEventListener('keydown', (event) => {
+            if (event.altKey && event.key === 'k') {
+                const findInput = document.getElementById('find-input') as HTMLInputElement;
+                findInput.focus();
+                event.preventDefault();
+            }
+        });
+
         // Find functionality
         const findInput = document.getElementById('find-input') as HTMLInputElement;
         const findBtn = document.getElementById('find-btn') as HTMLButtonElement;
