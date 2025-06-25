@@ -6,6 +6,7 @@ import CommandManager from './CommandManager';
 import CellEditCommand from './CellEditCommand';
 import ResizeCommand from './ResizeCommand';
 import DataGenerator from './DataGenerator';
+import RowsColumnsEditCommand from './RowsColumnEditCommand';
 
 /**
  * Main Excel Grid application class
@@ -79,7 +80,7 @@ export default class ExcelGrid {
         this._dataManager = new DataManager(1000, 1000, 1000000, 5000);
         
         // Initialize selection manager
-        this._selection = new Selection(100000, 500);
+        this._selection = new Selection(1000000, 5000);
 
                
         // Initialize command manager for undo/redo
@@ -116,19 +117,12 @@ export default class ExcelGrid {
                 <button class="toolbar-button" id="generate-data-btn">🎲 Generate Sample Data</button>
                 <button class="toolbar-button" id="clear-data-btn">🗑️ Clear All</button>
             </div>
-            
-            <div class="toolbar-separator"></div>
-            
-            <div class="toolbar-group">
-                <button class="toolbar-button" id="select-all-btn">📋 Select All</button>
-                <button class="toolbar-button" id="clear-selection-btn">❌ Clear Selection</button>
-            </div>
 
             <div class="toolbar-separator"></div>
 
             <div class="toolbar-group">
-                <input type="text" id="find-input" placeholder="Find value..." class="toolbar-input">
-                <button class="toolbar-button" id="find-btn">🔍 Find</button>
+                <input type="text" id="formula" placeholder="Write any Formula" class="toolbar-input">
+                <button class="toolbar-button" id="find-btn">Submit</button>
             </div>
 
             <div class="toolbar-separator"></div>
@@ -142,6 +136,16 @@ export default class ExcelGrid {
             <div class="toolbar-group">
                 <button class="toolbar-button" id="insert-row-btn">➕ Insert Row</button>
                 <button class="toolbar-button" id="insert-col-btn">➕ Insert Column</button>
+                <div class="toolbar-separator"></div>
+                <button class="toolbar-button" id="delete-row-btn">➖ delete Row</button>
+                <button class="toolbar-button" id="delete-col-btn">➖ delete Column</button>
+            </div>
+
+            <div class="toolbar-separator"></div>
+
+            <div class="toolbar-group">
+                <input type="text" id="find-input" placeholder="Find value..." class="toolbar-input">
+                <button class="toolbar-button" id="find-btn">🔍 Find</button>
             </div>
         `;
         
@@ -244,7 +248,15 @@ export default class ExcelGrid {
         insertRowBtn.addEventListener('click', () => {
             const activeRange = this._selection.activeRange;
             const rowIndex = activeRange ? activeRange.startRow : this._dataManager.rowCount;
-            if (this._dataManager.insertRow(rowIndex)) {
+            if (this._commandManager.executeCommand(
+                new RowsColumnsEditCommand(
+                    this._dataManager,
+                    'row',
+                    rowIndex,
+                    'insert',
+                    this._dataManager.getCellsInRange(rowIndex, activeRange?.startCol!, rowIndex, activeRange?.endCol!)
+                )
+            )) {
                 // Potentially adjust selection if it's affected by the insert
                 if (activeRange && rowIndex <= activeRange.startRow) {
                     this._selection.selectCell(activeRange.startRow + 1, activeRange.startCol);
@@ -260,7 +272,15 @@ export default class ExcelGrid {
         insertColBtn.addEventListener('click', () => {
             const activeRange = this._selection.activeRange;
             const colIndex = activeRange ? activeRange.startCol : this._dataManager.columnCount;
-            if (this._dataManager.insertColumn(colIndex)) {
+            if (this._commandManager.executeCommand(
+                new RowsColumnsEditCommand(
+                    this._dataManager,
+                    'column',
+                    colIndex,
+                    'insert',
+                    this._dataManager.getCellsInRange(activeRange?.startRow!, colIndex, activeRange?.endRow!, colIndex)
+                )
+            )) {
                 // Potentially adjust selection
                 if (activeRange && colIndex <= activeRange.startCol) {
                      this._selection.selectCell(activeRange.startRow, activeRange.startCol + 1);
@@ -269,6 +289,54 @@ export default class ExcelGrid {
                 this.updateStatistics();
             } else {
                 alert('Cannot insert column. Maximum column limit reached or invalid index.');
+            }
+        });
+
+        const deleteowBtn = document.getElementById('delete-row-btn') as HTMLButtonElement;
+        deleteowBtn.addEventListener('click', () => {
+            const activeRange = this._selection.activeRange;
+            const rowIndex = activeRange ? activeRange.startRow : this._dataManager.rowCount;
+            if (this._commandManager.executeCommand(
+                new RowsColumnsEditCommand(
+                    this._dataManager,
+                    'row',
+                    rowIndex,
+                    'delete',
+                    this._dataManager.getCellsInRange(rowIndex, 0, rowIndex, this._dataManager.columnCount)
+                )
+            )) {
+                // Potentially adjust selection if it's affected by the insert
+                if (activeRange && rowIndex <= activeRange.startRow) {
+                    this._selection.selectCell(activeRange.startRow + 1, activeRange.startCol);
+                }
+                this._canvas.redraw();
+                this.updateStatistics();
+            } else {
+                alert('Cannot insert row. Maximum row limit reached or invalid index.');
+            }
+        });
+
+        const deleteColBtn = document.getElementById('delete-col-btn') as HTMLButtonElement;
+        deleteColBtn.addEventListener('click', () => {
+            const activeRange = this._selection.activeRange;
+            const colIndex = activeRange ? activeRange.startCol : this._dataManager.columnCount
+            if (this._commandManager.executeCommand(
+                new RowsColumnsEditCommand(
+                    this._dataManager,
+                    'column',
+                    colIndex,
+                    'delete',
+                    this._dataManager.getCellsInRange(0, colIndex, this._dataManager.rowCount, colIndex)
+                )
+            )) {
+                // Potentially adjust selection if it's affected by the insert
+                if (activeRange && colIndex <= activeRange.startCol) {
+                    this._selection.selectCell(activeRange.startRow + 1, activeRange.startCol);
+                }
+                this._canvas.redraw();
+                this.updateStatistics();
+            } else {
+                alert('Cannot insert row. Maximum row limit reached or invalid index.');
             }
         });
 
@@ -331,6 +399,38 @@ export default class ExcelGrid {
                         event.preventDefault();
                         break;
                 }
+            }
+            if (event.key === 'Backspace') {
+                console.log("here");
+                
+                const cells: Array<{
+                    row: number;
+                    col: number;
+                }>  = this._selection.getSelectedCells();                
+                const data = cells.map(cell => ({oldValue: this._dataManager.getCell(cell.row, cell.col)!.value, newValue:  '', ...cell}))
+                this._commandManager.executeCommand(
+                    new CellEditCommand(
+                        this._dataManager,
+                        data,
+                    )
+                )
+                // cells.forEach(cell => {
+                //     // this._dataManager.deleteCell(cell.row, cell.col);
+                //     this._commandManager.executeCommand(
+                //         new CellEditCommand(
+                //             this._dataManager,
+                //             cell.row,
+                //             cell.col,
+                //             '',
+                //             this._dataManager.getCell(cell.row, cell.col)?.value!
+
+                //         )
+                //     )
+                // });
+                
+                this._canvas.redraw();
+                this.updateStatistics();
+                event.preventDefault();
             }
         });
         

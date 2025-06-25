@@ -5,38 +5,39 @@
 export default class DataGenerator {
     /** @type {string[]} Array of sample first names */
     private static readonly FIRST_NAMES = [
-        'John', 'Jane', 'Michael', 'Sarah', 'David', 'Emily', 'James', 'Jessica',
-        'Robert', 'Ashley', 'William', 'Amanda', 'Richard', 'Melissa', 'Joseph',
-        'Deborah', 'Christopher', 'Stephanie', 'Charles', 'Dorothy', 'Daniel',
-        'Lisa', 'Matthew', 'Nancy', 'Anthony', 'Karen', 'Mark', 'Betty'
+        'Aarav', 'Aadhya', 'Vihaan', 'Ananya', 'Arjun', 'Isha', 'Rohan', 'Priya',
+        'Karan', 'Saanvi', 'Rahul', 'Pooja', 'Aditya', 'Khushi', 'Siddharth',
+        'Neha', 'Vikram', 'Sneha', 'Rakesh', 'Meera', 'Manish', 'Tanvi',
+        'Harsh', 'Lavanya', 'Akash', 'Shreya', 'Kunal', 'Gayatri'
     ];
 
     /** @type {string[]} Array of sample last names */
     private static readonly LAST_NAMES = [
-        'Smith', 'Johnson', 'Williams', 'Brown', 'Jones', 'Garcia', 'Miller',
-        'Davis', 'Rodriguez', 'Martinez', 'Hernandez', 'Lopez', 'Gonzalez',
-        'Wilson', 'Anderson', 'Thomas', 'Taylor', 'Moore', 'Jackson', 'Martin',
-        'Lee', 'Perez', 'Thompson', 'White', 'Harris', 'Sanchez', 'Clark'
+        'Sharma', 'Verma', 'Patel', 'Reddy', 'Gupta', 'Nair', 'Singh', 'Khan',
+        'Mehta', 'Kapoor', 'Chatterjee', 'Iyer', 'Desai', 'Joshi', 'Agarwal',
+        'Mukherjee', 'Das', 'Kumar', 'Bhatia', 'Menon', 'Ghosh', 'Kulkarni',
+        'Rao', 'Mishra', 'Pandey', 'Banerjee', 'Chauhan'
     ];
 
     /** @type {string[]} Array of sample departments */
     private static readonly DEPARTMENTS = [
         'Engineering', 'Marketing', 'Sales', 'Human Resources', 'Finance',
-        'Operations', 'IT', 'Customer Service', 'Research & Development',
-        'Legal', 'Quality Assurance', 'Manufacturing'
+        'Operations', 'Information Technology', 'Customer Support',
+        'Research & Development', 'Legal', 'Quality Assurance', 'Procurement'
     ];
 
     /** @type {string[]} Array of sample cities */
     private static readonly CITIES = [
-        'New York', 'Los Angeles', 'Chicago', 'Houston', 'Philadelphia',
-        'Phoenix', 'San Antonio', 'San Diego', 'Dallas', 'San Jose',
-        'Austin', 'Jacksonville', 'Fort Worth', 'Columbus', 'Charlotte'
+        'Mumbai', 'Delhi', 'Bengaluru', 'Hyderabad', 'Ahmedabad', 'Chennai',
+        'Kolkata', 'Pune', 'Jaipur', 'Surat', 'Lucknow', 'Kanpur',
+        'Nagpur', 'Indore', 'Bhopal'
     ];
 
     /** @type {string[]} Array of sample project statuses */
     private static readonly STATUSES = [
         'Active', 'Completed', 'On Hold', 'Cancelled', 'Planning', 'In Progress'
     ];
+
 
     /**
      * Generates employee data records

@@ -68,7 +68,7 @@ export default class Canvas {
     private _isDrawing: boolean = false;
     
     /** @type {HTMLInputElement | null} Active cell input element */
-    private _cellInput: HTMLInputElement | null = null;
+    private _cellInput: HTMLInputElement | HTMLTextAreaElement | null = null;
     
     /** @type {object | null} Current resize operation state */
     private _resizeState: {
@@ -93,7 +93,7 @@ export default class Canvas {
     private readonly _minZoom: number = 0.6;
 
     /** @type {number} Maximum zoom level */
-    private readonly _maxZoom: number = 3;
+    private readonly _maxZoom: number = 5;
 
     /** @type {CommandManager} handles the exucution of all kind of commands white handling undoa and redo */
     private _commandManager: CommandManager;
@@ -486,14 +486,14 @@ export default class Canvas {
      */
     private handleMouseUp(event: MouseEvent): void {
         if (this._resizeState) {
-            console.log(this._resizeState);
+            // console.log(this._resizeState);
             
             if (this._resizeState.type === 'column') {
                 const col = this._dataManager.columns[this._resizeState.index];
-                this._commandManager.executeCommand(new ResizeCommand(col, this._resizeState.newSize!));
+                this._commandManager.executeCommand(new ResizeCommand(col, this._resizeState.newSize!, this._resizeState.originalSize));
             } else {
                 const row = this._dataManager.rows[this._resizeState.index];
-                this._commandManager.executeCommand(new ResizeCommand(row, this._resizeState.newSize!));
+                this._commandManager.executeCommand(new ResizeCommand(row, this._resizeState.newSize!, this._resizeState.originalSize));
             }
             this._resizeState = null;
         }
@@ -631,7 +631,7 @@ export default class Canvas {
 
     /**
      * Main drawing method that renders the entire grid
-     */
+    */
     private draw(): void {
         if (this._isDrawing) return;
         this._isDrawing = true;
@@ -650,6 +650,7 @@ export default class Canvas {
             // this.drawHeaders(); // Called later
             this.drawCells();
             this.drawHeaders(); // Draw headers last to ensure they are on top
+            
         } finally {
             this._isDrawing = false;
         }
@@ -939,10 +940,6 @@ export default class Canvas {
         const defaultVAlign = 'middle';
         const cellPadding = 4; // Padding inside cells for text
 
-        // Ensure canvas is cleared to white for default cell background
-        // this.clearCanvas() handles this by default if it clears to white or transparent
-        // and the HTML page background is white.
-
         // Excel cell text color
         this._ctx.fillStyle = '#000000';
         this._ctx.font = `${Math.round(14 * this._zoomLevel)}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
@@ -1229,50 +1226,55 @@ export default class Canvas {
         if (this._cellInput) {
             this.commitCellEdit();
         }
-        
-        const cellRect = this.getCellRect(row, col); // cellRect is already scaled and positioned for view
-        if (!cellRect || cellRect.width <=0 || cellRect.height <= 0) return; // Don't edit if not visible or too small
-        
-        this._cellInput = document.createElement('input');
-        this._cellInput.type = 'text';
-        this._cellInput.className = 'cell-input';
-        this._cellInput.value = this._dataManager.getCellValue(row, col);
-
-        const canvasRect = this._canvas.getBoundingClientRect(); // Get canvas position relative to viewport
-        
-        this._cellInput.style.position = 'absolute'; // Position absolute in document body
-        // cellRect.x and .y are relative to canvas origin. Add canvas origin to get document position.
-        // Subtract 1px for the border of the input to align content areas if cellRect is outer boundary.
-        this._cellInput.style.left = (canvasRect.left + cellRect.x) + 'px';
-        this._cellInput.style.top = (canvasRect.top + cellRect.y) + 'px';
-        this._cellInput.style.width = cellRect.width + 'px';
-        this._cellInput.style.height = cellRect.height + 'px';
-        this._cellInput.style.fontSize = `${14 * this._zoomLevel}px`; // Scale font size
-        this._cellInput.style.zIndex = '1';
-        
-        // Store cell coordinates
-        this._cellInput.dataset.row = row.toString();
-        this._cellInput.dataset.col = col.toString();
-        
-        document.body.appendChild(this._cellInput);
-
-        this._cellInput.focus();
-        this._cellInput.select();
-        
-        // Event listeners
-        this._cellInput.addEventListener('blur', () => this.commitCellEdit());
-
-        this._cellInput.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') {
+    
+        const cellRect = this.getCellRect(row, col);
+        if (!cellRect || cellRect.width <= 0 || cellRect.height <= 0) return;
+    
+        const textarea = document.createElement('textarea');
+        textarea.className = 'cell-input';
+        textarea.value = this._dataManager.getCellValue(row, col);
+    
+        const canvasRect = this._canvas.getBoundingClientRect();
+    
+        textarea.style.position = 'absolute';
+        textarea.style.left = (canvasRect.left + cellRect.x) + 'px';
+        textarea.style.top = (canvasRect.top + cellRect.y) + 'px';
+        textarea.style.border = '2px solid #429468';
+        textarea.style.width = cellRect.width + 'px';
+        textarea.style.height = cellRect.height + 'px';
+        textarea.style.fontSize = `${14 * this._zoomLevel}px`;
+        textarea.style.zIndex = '1';
+    
+        // These styles enable line wrapping and prevent overflow
+        textarea.style.resize = 'none'; // Optional: disable manual resizing
+        textarea.style.overflow = 'auto';
+        textarea.style.whiteSpace = 'pre-wrap'; // allows wrapping
+        textarea.style.wordBreak = 'break-word'; // break long words
+        textarea.style.padding = '2px';
+        textarea.style.boxSizing = 'border-box';
+    
+        textarea.dataset.row = row.toString();
+        textarea.dataset.col = col.toString();
+    
+        document.body.appendChild(textarea);
+        textarea.focus();
+        textarea.select();
+    
+        // Replace old input reference
+        this._cellInput = textarea as HTMLTextAreaElement;
+    
+        textarea.addEventListener('blur', () => this.commitCellEdit());
+    
+        textarea.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
                 this.commitCellEdit();
-            } else if (e.key === 'Escape' ||e.key === 'ArrowUp' ||e.key === 'ArrowLeft' ||e.key === 'ArrowRight'||e.key === 'ArrowDown') {
-                this.cancelCellEdit();
-            } else if (e.key === 'ArrowDown') {
+            } else if (e.key === 'Escape' || e.key === 'ArrowUp' || e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
                 this.cancelCellEdit();
             }
         });
-
     }
+    
 
     /**
      * Commits the current cell edit
@@ -1290,7 +1292,7 @@ export default class Canvas {
         // this._dataManager.setCellValue(row, col, value);
         this._commandManager.executeCommand(
             new CellEditCommand(
-                this._dataManager, row, col, value, this._dataManager.getCellValue(row, col)
+                this._dataManager, [{oldValue: this._dataManager.getCellValue(row, col), newValue: value, row, col}]
             )
         )
 

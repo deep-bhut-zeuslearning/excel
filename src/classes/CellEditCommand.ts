@@ -1,5 +1,13 @@
+import Cell from './Cell';
 import { BaseCommand } from './Command';
 import type DataManager from './DataManager';
+
+interface DataType {
+    oldValue: string;
+    newValue: string;
+    row: number;
+    col: number;
+}
 
 /**
  * Command for editing cell values
@@ -9,34 +17,16 @@ export default class CellEditCommand extends BaseCommand {
     /** @type {DataManager} Reference to the data manager */
     private _dataManager: DataManager;
     
-    /** @type {number} Row index of the cell being edited */
-    private _row: number;
-    
-    /** @type {number} Column index of the cell being edited */
-    private _col: number;
-    
-    /** @type {string} New value to set */
-    private _newValue: string;
-    
-    /** @type {string} Original value before the change */
-    private _oldValue: string;
+    /** @type {DataType} is holds the data about what and where the updation happened. */
+    private _data: Array<DataType>
 
-    /**
-     * Initializes a new CellEditCommand instance
-     * @param {DataManager} dataManager - The data manager instance
-     * @param {number} row - Row index of the cell
-     * @param {number} col - Column index of the cell
-     * @param {string} newValue - New value to set
-     * @param {string} oldValue - Current value (will be stored for undo)
-     */
-    constructor(dataManager: DataManager, row: number, col: number, newValue: string, oldValue: string) {
-        super(`Edit cell ${String.fromCharCode(65 + col)}${row + 1}`);
-        this._dataManager = dataManager;
-        this._row = row;
-        this._col = col;
-        this._newValue = newValue;
-        this._oldValue = oldValue;
+    // constructor(dataManager: DataManager, row: number, col: number, newValue: string, oldValue: string);
+    constructor(dataManager: DataManager,data: Array<DataType>) {
+        super("editing cell");
+        this._dataManager = dataManager
+        this._data = data
     }
+
 
     /**
      * Executes the cell edit command
@@ -44,8 +34,9 @@ export default class CellEditCommand extends BaseCommand {
      */
     execute(): boolean {
         try {
-            console.log("from cell edit class");
-            this._dataManager.setCellValue(this._row, this._col, this._newValue);
+            this._data.forEach(cell => {
+                this._dataManager.setCellValue(cell.row, cell.col, cell.newValue);
+            })
             return true;
         } catch (error) {
             console.error('Failed to execute cell edit command:', error);
@@ -59,7 +50,11 @@ export default class CellEditCommand extends BaseCommand {
      */
     undo(): boolean {
         try {
-            this._dataManager.setCellValue(this._row, this._col, this._oldValue);
+            this._data.forEach(cell => {
+                this._dataManager.setCellValue(cell.row, cell.col, cell.oldValue);
+
+            })
+            // this._dataManager.setCellValue(this._row, this._col, this._oldValue!);
             return true;
         } catch (error) {
             console.error('Failed to undo cell edit command:', error);
@@ -67,35 +62,35 @@ export default class CellEditCommand extends BaseCommand {
         }
     }
 
-    /**
-     * Gets the row index
-     * @returns {number} Row index
-     */
-    get row(): number {
-        return this._row;
-    }
+    // /**
+    //  * Gets the row index
+    //  * @returns {number} Row index
+    //  */
+    // get row(): number {
+    //     return this._row;
+    // }
 
-    /**
-     * Gets the column index
-     * @returns {number} Column index
-     */
-    get col(): number {
-        return this._col;
-    }
+    // /**
+    //  * Gets the column index
+    //  * @returns {number} Column index
+    //  */
+    // get col(): number {
+    //     return this._col;
+    // }
 
-    /**
-     * Gets the new value
-     * @returns {string} New cell value
-     */
-    get newValue(): string {
-        return this._newValue;
-    }
+    // /**
+    //  * Gets the new value
+    //  * @returns {string} New cell value
+    //  */
+    // get newValue(): string {
+    //     return this._newValue!;
+    // }
 
-    /**
-     * Gets the old value
-     * @returns {string} Original cell value
-     */
-    get oldValue(): string {
-        return this._oldValue;
-    }
+    // /**
+    //  * Gets the old value
+    //  * @returns {string} Original cell value
+    //  */
+    // get oldValue(): string {
+    //     return this._oldValue!;
+    // }
 }

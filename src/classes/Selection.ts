@@ -25,12 +25,14 @@ export default class Selection {
      * @param {number} maxRows - Maximum number of rows in the grid (default: 100000)
      * @param {number} maxCols - Maximum number of columns in the grid (default: 500)
      */
-    constructor(maxRows: number = 100000, maxCols: number = 500) {
+    constructor(maxRows: number = 1000000, maxCols: number = 5000) {
         this._ranges = [];
         this._activeRange = null;
         this._multiSelect = false;
         this._maxRows = maxRows;
         this._maxCols = maxCols;
+
+        this.selectCell(0, 0)
     }
 
     /**

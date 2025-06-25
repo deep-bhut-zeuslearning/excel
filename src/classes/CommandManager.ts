@@ -78,7 +78,7 @@ export default class CommandManager {
         if (this._paused) {
             return command.execute();
         }
-        console.log("executing");
+
         
 
         try {

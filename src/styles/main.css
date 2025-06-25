@@ -26,12 +26,12 @@ html, body {
   height: 60px;
   /* background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); */
   background: rgb(46, 120, 46);
-  border-bottom: 1px solid #e9ecef;
+  border-bottom: 1px solid rgb(2, 44, 2);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   display: flex;
   align-items: center;
   padding: 0 20px;
-  gap: 15px;
+  gap: 5px;
   z-index: 1000;
   position: relative;
 }
@@ -45,7 +45,7 @@ html, body {
 
 /* Toolbar buttons with glass morphism effect */
 .toolbar-button {
-  padding: 8px 16px;
+  padding: 8px;
   background: rgba(255, 255, 255, 0.2);
   border: 1px solid rgba(255, 255, 255, 0.3);
   border-radius: 8px;
@@ -179,21 +179,24 @@ html, body {
   image-rendering: pixelated;
   image-rendering: -webkit-optimize-contrast;
 }
-
 /* Cell input overlay */
 .cell-input {
   position: fixed;
-  border: 1px solid #007bff; /* Slightly thinner border */
+  border: 1px solid #429468; /* Slightly thinner border */
   font-family: 'Segoe UI', Arial, sans-serif;
   font-size: 14px; /* Should match canvas font size for cells */
   padding: 0 2px; /* Minimal padding, adjusted to align text */
   outline: none;
   background: white;
-  box-shadow: 0 2px 6px rgba(0, 123, 255, 0.25); /* Softer shadow */
+  /* box-shadow: 0 2px 6px rgba(0, 123, 255, 0.25);  */
   /* z-index is set dynamically via JS */
   border-radius: 0px; /* No border radius for tight fit */
   /* transition: box-shadow 0.2s ease; Might be too slow for quick edits */
   box-sizing: border-box; /* Ensure padding and border are included in width/height */
+}
+
+textarea::-webkit-scrollbar {
+  display: none;
 }
 
 .cell-input:focus {
@@ -268,15 +271,16 @@ html, body {
 }
 
 #canvas-wrapper::-webkit-scrollbar-thumb {
-  background: linear-gradient(135deg, #667eea, #764ba2);
+  /* background: linear-gradient(135deg, #667eea, #764ba2); */
+  background: gray;
   border-radius: 8px;
   border: 2px solid #f1f3f4;
   transition: background 0.2s ease;
 }
 
-#canvas-wrapper::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(135deg, #5a6fd8, #6a4190);
-}
+/* #canvas-wrapper::-webkit-scrollbar-thumb:hover {
+  background: green
+} */
 
 #canvas-wrapper::-webkit-scrollbar-corner {
   background: #f1f3f4;

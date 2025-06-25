@@ -309,6 +309,30 @@ export default class DataManager {
         }
     }
 
+    setCellValueOfColumn(data: Array<Cell>): void {
+        data.forEach((cell) => {
+            this.setCellValue(cell.row, cell.col, cell.value)
+        });
+    }
+
+    setCellValueOfRow(data: Array<Cell>): void {
+        data.forEach((cell) => {
+            this.setCellValue(cell.row, cell.col, cell.value)
+        });
+    }
+
+    deleteCell(row: number, col: number): void {
+        const cell = this.getCell(row, col);
+        const key = this.getCellKey(row, col);
+        if (cell) {
+            this._cells.delete(key)
+        }
+    }
+
+    // getNumberOfCellsInColumn(index: number): number {
+    //     return this._cells.
+    // }
+
     /**
      * Gets the total number of non-empty cells
      * @returns {number} Number of cells with values
@@ -379,6 +403,7 @@ export default class DataManager {
      * @returns {boolean} True if the row was inserted successfully
      */
     insertRow(index: number): boolean {
+
         if (index < 0 || index > this._rowCount || this._rowCount >= this._maxRows) {
             return false;
         }
@@ -420,8 +445,7 @@ export default class DataManager {
     insertColumn(index: number): boolean {
         if (index < 0 || index > this._columnCount || this._columnCount >= this._maxColumns) {
             return false;
-        }
-        
+        } 
         // Shift existing columns right
         const newCells = new Map<string, Cell>();
         for (const [key, cell] of this._cells) {

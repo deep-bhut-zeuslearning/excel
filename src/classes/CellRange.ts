@@ -1,5 +1,3 @@
-import Cell from './Cell';
-
 /**
  * Represents a rectangular range of cells in the Excel grid
  * Handles multi-cell selection and operations
@@ -82,7 +80,7 @@ export default class CellRange {
     /**
      * Checks if this range represents a full row selection
      * @returns {boolean} True if this is a row selection
-     */
+    */
     get isRowSelection(): boolean {
         return this._isRowSelection;
     }
@@ -93,7 +91,7 @@ export default class CellRange {
      * @param {number} endCol - The ending column index (defaults to startCol)
      * @param {number} maxRows - The maximum number of rows in the grid
      */
-    setColumnSelection(startCol: number, endCol: number = startCol, maxRows: number = 100000): void {
+    setColumnSelection(startCol: number, endCol: number = startCol, maxRows: number = 1000000): void {
         this._startCol = Math.min(startCol, endCol);
         this._endCol = Math.max(startCol, endCol);
         this._startRow = 0;
@@ -108,7 +106,7 @@ export default class CellRange {
      * @param {number} endRow - The ending row index (defaults to startRow)
      * @param {number} maxCols - The maximum number of columns in the grid
      */
-    setRowSelection(startRow: number, endRow: number = startRow, maxCols: number = 500): void {
+    setRowSelection(startRow: number, endRow: number = startRow, maxCols: number = 5000): void {
         this._startRow = Math.min(startRow, endRow);
         this._endRow = Math.max(startRow, endRow);
         this._startCol = 0;
