@@ -321,16 +321,15 @@ export default class Canvas {
         this._zoomLevel = Math.max(this._minZoom, Math.min(this._maxZoom, newZoomLevel));
 
         if (this._zoomLevel !== oldZoomLevel) {
-            // Adjust scroll position to keep the center of the view fixed
-            // This is a simplified approach; more sophisticated methods might zoom into the mouse pointer
-            const centerX = this._scrollX + this._viewportWidth / 2;
-            const centerY = this._scrollY + this._viewportHeight  / 2;
+            // Adjust scroll position to keep the logical point at the center of the viewport fixed
+            const logicalCenterXInView = this._scrollX + (this._viewportWidth / 2) / oldZoomLevel;
+            const logicalCenterYInView = this._scrollY + (this._viewportHeight / 2) / oldZoomLevel;
 
-            const newScrollX = (centerX / oldZoomLevel) * this._zoomLevel - this._viewportWidth / 2;
-            const newScrollY = (centerY / oldZoomLevel) * this._zoomLevel - this._viewportHeight / 2;
+            const newScrollX = logicalCenterXInView - (this._viewportWidth / 2) / this._zoomLevel;
+            const newScrollY = logicalCenterYInView - (this._viewportHeight / 2) / this._zoomLevel;
 
-            this._wrapper.scrollLeft = newScrollX;
-            this._wrapper.scrollTop = newScrollY;
+            this._wrapper.scrollLeft = Math.max(0, newScrollX); // Ensure scroll is not negative
+            this._wrapper.scrollTop = Math.max(0, newScrollY);  // Ensure scroll is not negative
 
             this.updateCanvasSize(); // May need adjustment if zoom affects canvas element size itself
             this.setupVirtualScrolling(); // Virtual scroll area depends on zoom
