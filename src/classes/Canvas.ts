@@ -565,6 +565,7 @@ export default class Canvas {
                             activeRange.startRow,
                             activeRange.startCol - 1
                         );
+
                     } else {
                         this._selection.selectCell(activeRange.startRow, activeRange.startCol - 1);
                     }
@@ -855,7 +856,7 @@ export default class Canvas {
             if (this._selection.getSelectedCells().length > 0) {
                 this._selection.getSelectedCells().forEach((cell) => {
                     if (cell.col === c) {
-                        this._ctx.textAlign
+                        this._ctx.textAlign = 'right';
                         this._ctx.fillStyle = '#caead8';
                         this._ctx.fillRect(Math.round(currentDrawX), 0, Math.round(width), Math.round(scaledHeaderHeight));
                         this._ctx.fillStyle = '#107c41';
@@ -866,6 +867,7 @@ export default class Canvas {
             }
 
             if (this._selection.isColumnSelected(c)) {
+                this._ctx.textAlign = 'right';
                 // Excel selected header background color
                 this._ctx.fillStyle = '#107c41';
                 this._ctx.fillRect(Math.round(currentDrawX - 1), 0, Math.round(width + 2), Math.round(scaledHeaderHeight));
@@ -877,6 +879,7 @@ export default class Canvas {
             if (width > 10 * this._zoomLevel) { // Only draw text if there's enough space
                  this._ctx.fillText(label, Math.round(currentDrawX + width / 2), Math.round(scaledHeaderHeight / 2));
                  if (this._selection.isColumnSelected(c)) {
+                    this._ctx.textAlign = 'right';
                     this._ctx.fillStyle = '#ffffff';
                     this._ctx.fillText(label, Math.round(currentDrawX + width / 2), Math.round(scaledHeaderHeight / 2));
                     this._ctx.fillStyle = '#5E5E5E';
@@ -900,6 +903,7 @@ export default class Canvas {
             if (this._selection.getSelectedCells().length > 0) {
                 this._selection.getSelectedCells().forEach((cell) => {
                     if (cell.row === r) {
+                        this._ctx.textAlign = 'right';
                         this._ctx.fillStyle = '#caead8';
                         this._ctx.fillRect(0, Math.round(currentDrawY), Math.round(scaledHeaderWidth), Math.round(height));
                         this._ctx.fillStyle = '#107c41';
@@ -911,6 +915,7 @@ export default class Canvas {
             
             if (this._selection.isRowSelected(r)) {
                 // Excel selected header background color
+                this._ctx.textAlign = 'right';
                 this._ctx.fillStyle = '#107c41';
                 this._ctx.fillRect(0, Math.round(currentDrawY), Math.round(scaledHeaderWidth), Math.round(height));
                 // Reset to Excel header text color
@@ -922,8 +927,9 @@ export default class Canvas {
                 this._ctx.font = '14px sans-serif';
                 this._ctx.fillText(label, Math.round(scaledHeaderWidth - 5), Math.round(currentDrawY + height / 2));
                 if (this._selection.isRowSelected(r)) {
+                    this._ctx.textAlign = 'right';
                     this._ctx.fillStyle = '#ffffff';
-                    this._ctx.fillText(label, Math.round(scaledHeaderWidth / 2), Math.round(currentDrawY + height / 2));
+                    this._ctx.fillText(label, Math.round(scaledHeaderWidth - 5), Math.round(currentDrawY + height / 2));
                     this._ctx.fillStyle = '#5E5E5E';
                 }
             }

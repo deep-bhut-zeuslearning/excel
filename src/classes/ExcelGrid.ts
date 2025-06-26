@@ -83,7 +83,7 @@ export default class ExcelGrid {
 
                
         // Initialize command manager for undo/redo
-        this._commandManager = new CommandManager(100);
+        this._commandManager = new CommandManager(1000);
         
         // Initialize canvas for rendering
         this._canvas = new Canvas(
