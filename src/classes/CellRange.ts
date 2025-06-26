@@ -184,6 +184,10 @@ export default class CellRange {
         this._endRow = Math.max(this._endRow, row);
         this._startCol = Math.min(this._startCol, col);
         this._endCol = Math.max(this._endCol, col);
+        // Expanding a range based on specific cell coordinates means it's no longer
+        // necessarily a "full" row or column selection.
+        this._isColumnSelection = false;
+        this._isRowSelection = false;
     }
 
     /**

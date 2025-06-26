@@ -84,6 +84,15 @@ export default class Canvas {
     /** @type {{ row: number, col: number} | null} Starting cell of a drag selection */
     private _dragStartCell: { row: number, col: number } | null = null;
 
+    /** @type {boolean} Whether a drag selection on a row header is in progress */
+    private _isDraggingRowHeaderSelection: boolean = false;
+
+    /** @type {boolean} Whether a drag selection on a column header is in progress */
+    private _isDraggingColumnHeaderSelection: boolean = false;
+
+    /** @type {number | null} Starting index for header drag selection */
+    private _dragStartHeaderIndex: number | null = null;
+
     /** @type {number} Current zoom level */
     private _zoomLevel: number = 1;
 
@@ -367,11 +376,14 @@ export default class Canvas {
     private handleMouseDown(event: MouseEvent): void {
         // Convert screen coordinates to canvas coordinates
         const rect = this._canvas.getBoundingClientRect();
-        const x = event.clientX - rect.left;
-        const y = event.clientY - rect.top;
+        const viewX = event.clientX - rect.left;
+        const viewY = event.clientY - rect.top;
+
+        const logicalX = this._scrollX + viewX / this._zoomLevel;
+        const logicalY = this._scrollY + viewY / this._zoomLevel;
         
         // Check for resize handles first
-        const resizeHandle = this.getResizeHandle(x, y);
+        const resizeHandle = this.getResizeHandle(viewX, viewY);
         if (resizeHandle) {
             this._resizeState = {
                 type: resizeHandle.type,
@@ -385,47 +397,48 @@ export default class Canvas {
             this._canvas.style.cursor = resizeHandle.type === 'column' ? 'col-resize' : 'row-resize';
             return;
         }
+
+        // Check for header selection drag start
+        // Row header click/drag
+        if (viewX < this._headerWidth * this._zoomLevel && viewY >= this._headerHeight * this._zoomLevel) {
+            this._isDraggingRowHeaderSelection = true;
+            this._isDraggingSelection = false; // Ensure cell dragging is off
+            this._dragStartHeaderIndex = this.getRowAtY(logicalY);
+            if (this._dragStartHeaderIndex !== -1 && this._dragStartHeaderIndex !== null) {
+                this._selection.selectRow(this._dragStartHeaderIndex);
+                this.scheduleRedraw();
+            }
+            return;
+        }
+        // Column header click/drag
+        else if (viewY < this._headerHeight * this._zoomLevel && viewX >= this._headerWidth * this._zoomLevel) {
+            this._isDraggingColumnHeaderSelection = true;
+            this._isDraggingSelection = false; // Ensure cell dragging is off
+            this._dragStartHeaderIndex = this.getColumnAtX(logicalX);
+            if (this._dragStartHeaderIndex !== -1 && this._dragStartHeaderIndex !== null) {
+                this._selection.selectColumn(this._dragStartHeaderIndex);
+                this.scheduleRedraw();
+            }
+            return;
+        }
         
-        // Handle cell selection
-        const cellCoords = this.getCellAtPosition(x, y);
+        // Handle cell selection (if not header drag)
+        const cellCoords = this.getCellAtPosition(viewX, viewY);
         if (cellCoords) {
             this._isDraggingSelection = true;
             this._dragStartCell = { row: cellCoords.row, col: cellCoords.col };
 
             if (event.ctrlKey || event.metaKey) {
-                // Multi-select mode - This might need more complex logic for drag,
-                // for now, we'll treat drag as creating a new primary selection.
-                // To add to selection with Ctrl+Drag, we'd need to store multiple drag ranges.
-                this._selection.multiSelect = true; // Enable multi-select
-                // For now, a new drag always replaces or becomes the active selection
+                this._selection.multiSelect = true;
                 this._selection.selectCell(cellCoords.row, cellCoords.col, true);
             } else if (event.shiftKey && this._selection.activeRange) {
-                // Extend selection from active range's start to current cell
                 this._selection.extendSelection(cellCoords.row, cellCoords.col);
             } else {
-                // Single cell selection / start of new drag range
                 this._selection.selectCell(cellCoords.row, cellCoords.col);
             }
-            
             this.scheduleRedraw();
         }
-        
-        // Handle header clicks for column/row selection
-        if (x < this._headerWidth && y >= this._headerHeight && !this._isDraggingSelection) {
-            // Row header clicked
-            const rowIndex = this.getRowAtY(y);
-            if (rowIndex >= 0) {
-                this._selection.selectRow(rowIndex);
-                this.scheduleRedraw();
-            }
-        } else if (y < this._headerHeight && x >= this._headerWidth) {
-            // Column header clicked
-            const colIndex = this.getColumnAtX(x);
-            if (colIndex >= 0) {
-                this._selection.selectColumn(colIndex);
-                this.scheduleRedraw();
-            }
-        }
+        // Removed old header click logic as it's now covered by drag start
     }
 
     /**
@@ -434,14 +447,17 @@ export default class Canvas {
      */
     private handleMouseMove(event: MouseEvent): void {
         const rect = this._canvas.getBoundingClientRect();
-        const x = event.clientX - rect.left;
-        const y = event.clientY - rect.top;
+        const viewX = event.clientX - rect.left;
+        const viewY = event.clientY - rect.top;
+
+        const logicalX = this._scrollX + viewX / this._zoomLevel;
+        const logicalY = this._scrollY + viewY / this._zoomLevel;
         
         if (this._resizeState) {
             // Handle active resize operation
             const delta = this._resizeState.type === 'column' 
-                ? x - this._resizeState.startX  // delta in view pixels
-                : y - this._resizeState.startY; // delta in view pixels
+                ? viewX - this._resizeState.startX  // delta in view pixels
+                : viewY - this._resizeState.startY; // delta in view pixels
             
             const logicalDelta = delta / this._zoomLevel; // Convert view delta to logical delta
             const minLogicalSize = 20; // Minimum logical width/height for a cell
@@ -455,21 +471,33 @@ export default class Canvas {
             
             this.setupVirtualScrolling();
             this.scheduleRedraw();
+        } else if (this._isDraggingRowHeaderSelection && this._dragStartHeaderIndex !== null) {
+            const currentRow = this.getRowAtY(logicalY);
+            if (currentRow !== -1) {
+                this._selection.selectRowRange(
+                    Math.min(this._dragStartHeaderIndex, currentRow),
+                    Math.max(this._dragStartHeaderIndex, currentRow)
+                );
+                this.scheduleRedraw();
+            }
+        } else if (this._isDraggingColumnHeaderSelection && this._dragStartHeaderIndex !== null) {
+            const currentCol = this.getColumnAtX(logicalX);
+            if (currentCol !== -1) {
+                this._selection.selectColumnRange(
+                    Math.min(this._dragStartHeaderIndex, currentCol),
+                    Math.max(this._dragStartHeaderIndex, currentCol)
+                );
+                this.scheduleRedraw();
+            }
         } else if (this._isDraggingSelection && this._dragStartCell) {
-            const cellCoords = this.getCellAtPosition(x, y);
+            const cellCoords = this.getCellAtPosition(viewX, viewY);
             if (cellCoords && this._selection.activeRange) {
-                // Ensure active range is up-to-date with the drag start cell if it's a new selection
-                if (this._selection.activeRange.startRow !== this._dragStartCell.row ||
-                    this._selection.activeRange.startCol !== this._dragStartCell.col) {
-                     // This case should ideally be handled by mousedown creating the initial selection correctly.
-                     // If we are dragging, activeRange should already be set with _dragStartCell as one of its corners.
-                }
                 this._selection.extendSelection(cellCoords.row, cellCoords.col);
                 this.scheduleRedraw();
             }
         } else {
             // Update cursor based on position (not dragging or resizing)
-            const resizeHandle = this.getResizeHandle(x, y);
+            const resizeHandle = this.getResizeHandle(viewX, viewY);
             if (resizeHandle) {
                 this._canvas.style.cursor = resizeHandle.type === 'column' ? 'col-resize' : 'row-resize';
             } else {
@@ -485,7 +513,6 @@ export default class Canvas {
     private handleMouseUp(event: MouseEvent): void {
         if (this._resizeState) {
             // console.log(this._resizeState);
-            
             if (this._resizeState.type === 'column') {
                 const col = this._dataManager.columns[this._resizeState.index];
                 this._commandManager.executeCommand(new ResizeCommand(col, this._resizeState.newSize!, this._resizeState.originalSize));
@@ -499,8 +526,14 @@ export default class Canvas {
         if (this._isDraggingSelection) {
             this._isDraggingSelection = false;
             this._dragStartCell = null;
-            // Selection is already updated by mouseMove, so no specific action here
+        }
 
+        if (this._isDraggingRowHeaderSelection || this._isDraggingColumnHeaderSelection) {
+            this._isDraggingRowHeaderSelection = false;
+            this._isDraggingColumnHeaderSelection = false;
+            this._dragStartHeaderIndex = null;
+            // Redraw might be needed if the selection changed on mouse up,
+            // but typically it's updated on mouse move.
         }
     }
 
@@ -531,57 +564,91 @@ export default class Canvas {
         
         switch (event.key) {
             case 'ArrowUp':
-                if (activeRange.startRow > 0) {
-                    if (event.shiftKey) {
-                        this._selection.extendSelection(
-                            activeRange.startRow - 1,
-                            activeRange.startCol
-                        );
-                    } else {
-                        this._selection.selectCell(activeRange.startRow - 1, activeRange.startCol);
+                if (event.shiftKey) {
+                    if (activeRange.isRowSelection) {
+                        const newStartRow = Math.max(0, activeRange.startRow - 1);
+                        this._selection.selectRowRange(newStartRow, activeRange.endRow);
+                    } else { // Cell or cell-range selection
+                        // First Shift+Arrow converts to row/col selection based on arrow direction
+                        // Subsequent presses extend that.
+                        // For ArrowUp, it means selecting the current row(s) first.
+                        // Then, if desired, extend upwards in the same action.
+                        // The plan implies first press converts, next extends.
+                        // So, this action selects the current row(s) spanned by activeRange.
+                        this._selection.selectRowRange(activeRange.startRow, activeRange.endRow);
+                        // To extend immediately on first press:
+                        // const currentActiveRange = this._selection.activeRange; // Re-fetch
+                        // if (currentActiveRange) {
+                        //    const newStartRow = Math.max(0, currentActiveRange.startRow - 1);
+                        //    this._selection.selectRowRange(newStartRow, currentActiveRange.endRow);
+                        // }
                     }
+                    handled = true;
+                } else if (activeRange.startRow > 0) {
+                    this._selection.selectCell(activeRange.startRow - 1, activeRange.startCol);
                     handled = true;
                 }
                 break;
             
             case 'ArrowDown':
-                if (activeRange.startRow < this._dataManager.rowCount - 1) {
-                    if (event.shiftKey) {
-                        this._selection.extendSelection(
-                            activeRange.endRow + 1,
-                            activeRange.startCol
-                        );
+                if (event.shiftKey) {
+                    if (activeRange.isRowSelection) {
+                        const newEndRow = Math.min(this._dataManager.rowCount - 1, activeRange.endRow + 1);
+                        this._selection.selectRowRange(activeRange.startRow, newEndRow);
                     } else {
-                        this._selection.selectCell(activeRange.startRow + 1, activeRange.startCol);
+                        this._selection.selectRowRange(activeRange.startRow, activeRange.endRow);
+                        // To extend immediately on first press:
+                        // const currentActiveRange = this._selection.activeRange; // Re-fetch
+                        // if (currentActiveRange) {
+                        //    const newEndRow = Math.min(this._dataManager.rowCount - 1, currentActiveRange.endRow + 1);
+                        //    this._selection.selectRowRange(currentActiveRange.startRow, newEndRow);
+                        // }
                     }
+                    handled = true;
+                } else if (activeRange.startRow < this._dataManager.rowCount - 1) {
+                    this._selection.selectCell(activeRange.startRow + 1, activeRange.startCol);
                     handled = true;
                 }
                 break;
             
             case 'ArrowLeft':
-                if (activeRange.startCol > 0) {
-                    if (event.shiftKey) {
-                        this._selection.extendSelection(
-                            activeRange.startRow,
-                            activeRange.startCol - 1
-                        );
+                if (event.shiftKey) {
+                    if (activeRange.isColumnSelection) {
+                        const newStartCol = Math.max(0, activeRange.startCol - 1);
+                        this._selection.selectColumnRange(newStartCol, activeRange.endCol);
                     } else {
-                        this._selection.selectCell(activeRange.startRow, activeRange.startCol - 1);
+                        this._selection.selectColumnRange(activeRange.startCol, activeRange.endCol);
+                        // To extend immediately on first press:
+                        // const currentActiveRange = this._selection.activeRange; // Re-fetch
+                        // if (currentActiveRange) {
+                        //    const newStartCol = Math.max(0, currentActiveRange.startCol - 1);
+                        //    this._selection.selectColumnRange(newStartCol, currentActiveRange.endCol);
+                        // }
                     }
+                    handled = true;
+                } else if (activeRange.startCol > 0) {
+                    this._selection.selectCell(activeRange.startRow, activeRange.startCol - 1);
                     handled = true;
                 }
                 break;
             
             case 'ArrowRight':
-                if (activeRange.startCol < this._dataManager.columnCount - 1) {
-                    if (event.shiftKey) {
-                        this._selection.extendSelection(
-                            activeRange.startRow,
-                            activeRange.endCol + 1
-                        );
+                if (event.shiftKey) {
+                    if (activeRange.isColumnSelection) {
+                        const newEndCol = Math.min(this._dataManager.columnCount - 1, activeRange.endCol + 1);
+                        this._selection.selectColumnRange(activeRange.startCol, newEndCol);
                     } else {
-                        this._selection.selectCell(activeRange.startRow, activeRange.startCol + 1);
+                        this._selection.selectColumnRange(activeRange.startCol, activeRange.endCol);
+                        // To extend immediately on first press:
+                        // const currentActiveRange = this._selection.activeRange; // Re-fetch
+                        // if (currentActiveRange) {
+                        //    const newEndCol = Math.min(this._dataManager.columnCount - 1, currentActiveRange.endCol + 1);
+                        //    this._selection.selectColumnRange(currentActiveRange.startCol, newEndCol);
+                        // }
                     }
+                    handled = true;
+                } else if (activeRange.startCol < this._dataManager.columnCount - 1) {
+                    this._selection.selectCell(activeRange.startRow, activeRange.startCol + 1);
                     handled = true;
                 }
                 break;
