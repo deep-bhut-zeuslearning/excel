@@ -1,7 +1,5 @@
 import type DataManager from './DataManager';
 import type Selection from './Selection';
-import Column from './Column';
-import type Row from './Row';
 import CommandManager from './CommandManager';
 import CellEditCommand from './CellEditCommand';
 import ResizeCommand from './ResizeCommand';
@@ -502,7 +500,7 @@ export default class Canvas {
             this._isDraggingSelection = false;
             this._dragStartCell = null;
             // Selection is already updated by mouseMove, so no specific action here
-            // This is where you might finalize a selection command for undo/redo
+
         }
     }
 
@@ -586,6 +584,22 @@ export default class Canvas {
                     }
                     handled = true;
                 }
+                break;
+            case 'Backspace':
+                const cells: Array<{
+                    row: number;
+                    col: number;
+                }>  = this._selection.getSelectedCells();                
+                const data = cells.map(cell => ({oldValue: this._dataManager.getCell(cell.row, cell.col)!.value, newValue:  '', ...cell}))
+                this._commandManager.executeCommand(
+                    new CellEditCommand(
+                        this._dataManager,
+                        data,
+                    )
+                )
+
+                this.redraw();
+                event.preventDefault();
                 break;
             
             case 'Enter':
@@ -820,7 +834,7 @@ export default class Canvas {
         // Excel header text color
         this._ctx.fillStyle = '#5E5E5E';
         this._ctx.font = `${Math.round(12 * this._zoomLevel)}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
-        this._ctx.textAlign = 'center';
+        this._ctx.textAlign = 'right';
         this._ctx.textBaseline = 'middle';
         // Excel cell border color for header grid lines
         this._ctx.strokeStyle = '#D0D7DE';
@@ -835,13 +849,13 @@ export default class Canvas {
             const label = colDef.getLabel();
             
             if (currentDrawX + width < 0 || currentDrawX > this._viewportWidth) {
-                currentDrawX += width;
                 continue;
             }
 
             if (this._selection.getSelectedCells().length > 0) {
                 this._selection.getSelectedCells().forEach((cell) => {
                     if (cell.col === c) {
+                        this._ctx.textAlign
                         this._ctx.fillStyle = '#caead8';
                         this._ctx.fillRect(Math.round(currentDrawX), 0, Math.round(width), Math.round(scaledHeaderHeight));
                         this._ctx.fillStyle = '#107c41';
@@ -905,7 +919,8 @@ export default class Canvas {
             
             this._ctx.strokeRect(0, Math.round(currentDrawY), Math.round(scaledHeaderWidth), Math.round(height));
             if (height > 10 * this._zoomLevel) { // Only draw text if there's enough space
-                this._ctx.fillText(label, Math.round(scaledHeaderWidth / 2), Math.round(currentDrawY + height / 2));
+                this._ctx.font = '14px sans-serif';
+                this._ctx.fillText(label, Math.round(scaledHeaderWidth - 5), Math.round(currentDrawY + height / 2));
                 if (this._selection.isRowSelected(r)) {
                     this._ctx.fillStyle = '#ffffff';
                     this._ctx.fillText(label, Math.round(scaledHeaderWidth / 2), Math.round(currentDrawY + height / 2));
@@ -969,19 +984,24 @@ export default class Canvas {
                     currentDrawX += colWidth;
                     continue;
                 }
-
+                const cell = this._dataManager.getCell(r, c)!;
                 const value = this._dataManager.getCellValue(r, c);
                 
                 if (value) {
-                    const fontSize = defaultFontSize;
+                    const fontSize = cell.fontSize;
                     this._ctx.font = `${fontSize}px ${defaultFontFamily}`;
 
                     // Clip text to cell boundaries
                     // const fontSize = cell?.fontSize ?? defaultFontSize;
-                    const hAlign = defaultHAlign;
-                    const vAlign = defaultVAlign;
-                    this._ctx.font = `${fontSize}px ${defaultFontFamily}`;
+                    const hAlign = cell.horizontalAlignment;
+                    const vAlign = cell.verticalAlignment;
 
+                    const isBold = cell.bold;
+                    
+                    this._ctx.font = `${isBold ? cell.italic ? 'bold italic' : 'bold' : cell.italic ? 'italic' : 'normal'} ${fontSize}px ${defaultFontFamily}`;
+                    // console.log(`${isBold ? 'bold' : cell.italic ? 'italic' : 'normal'} ${fontSize}px ${defaultFontFamily}`);
+                    // console.log(this._dataManager.getAllCells());
+                    
                     // Clip text to cell boundaries
                     this._ctx.save();
                     this._ctx.beginPath();
@@ -1173,7 +1193,7 @@ export default class Canvas {
      * @returns {object | null} Resize handle info or null
      */
     private getResizeHandle(viewX: number, viewY: number): { type: 'column' | 'row', index: number } | null {
-        const tolerance = 10 / this._zoomLevel; // Unscale tolerance for comparison with logical coordinates or scale elements
+        const tolerance = 10 / this._zoomLevel;
 
         const scaledHeaderHeight = this._headerHeight * this._zoomLevel;
         const scaledHeaderWidth = this._headerWidth * this._zoomLevel;
@@ -1191,7 +1211,7 @@ export default class Canvas {
                         return { type: 'column', index: c };
                     }
                 }
-                if (colRightEdgeDrawX > this._viewportWidth + tolerance * this._zoomLevel) break; // Optimization: stop if way off screen
+                if (colRightEdgeDrawX > this._viewportWidth + tolerance * this._zoomLevel) break;
                 currentDrawX = colRightEdgeDrawX;
             }
         }
@@ -1269,7 +1289,9 @@ export default class Canvas {
             if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
                 this.commitCellEdit();
-            } else if (e.key === 'Escape' || e.key === 'ArrowUp' || e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+            } else if (e.key === 'Escape'
+                //  || e.key === 'ArrowUp' || e.key === 'ArrowLeft' || e.key === 'ArrowRight'
+            ) {
                 this.cancelCellEdit();
             }
         });

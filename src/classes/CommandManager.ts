@@ -19,6 +19,7 @@ export default class CommandManager {
 
     /**
      * Initializes a new CommandManager instance
+     * 
      * @param {number} maxHistorySize - Maximum number of commands to keep (default: 100)
      */
     constructor(maxHistorySize: number = 100) {

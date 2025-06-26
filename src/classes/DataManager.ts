@@ -116,7 +116,7 @@ export default class DataManager {
      * @param {number} col - Column index
      * @param {'left' | 'center' | 'right' | null} alignment - Horizontal alignment to set, or null for default.
      */
-    setCellHorizontalAlignment(row: number, col: number, alignment: 'left' | 'center' | 'right' | null): void {
+    setCellHorizontalAlignment(row: number, col: number, alignment: 'left' | 'center' | 'right'): void {
         if (row < 0 || row >= this._maxRows || col < 0 || col >= this._maxColumns) {
             return;
         }
@@ -140,7 +140,7 @@ export default class DataManager {
      * @param {number} col - Column index
      * @param {'top' | 'middle' | 'bottom' | null} alignment - Vertical alignment to set, or null for default.
      */
-    setCellVerticalAlignment(row: number, col: number, alignment: 'top' | 'middle' | 'bottom' | null): void {
+    setCellVerticalAlignment(row: number, col: number, alignment: 'top' | 'middle' | 'bottom'): void {
         if (row < 0 || row >= this._maxRows || col < 0 || col >= this._maxColumns) {
             return;
         }
@@ -195,13 +195,13 @@ export default class DataManager {
             return;
         }
         
+
         // Expand grid if necessary
         this.ensureCapacity(row + 1, col + 1);
         
-        const key = this.getCellKey(row, col);
+        let key = this.getCellKey(row, col);
         
         if (value === '' || value === null || value === undefined) {
-            // Remove empty cells to save memory
             this._cells.delete(key);
         } else {
             let cell = this._cells.get(key);
@@ -212,6 +212,16 @@ export default class DataManager {
                 cell.value = value;
             }
         }
+    }
+
+    setBold(row: number, col: number, isbold: boolean): void {
+        const cell = this.getCell(row, col)!;
+        cell.bold = isbold;
+    }
+
+    setItalic(row: number, col: number, isItalic: boolean): void {
+        const cell = this.getCell(row, col)!;
+        cell.italic = isItalic
     }
 
     /**

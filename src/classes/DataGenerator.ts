@@ -54,13 +54,13 @@ export default class DataGenerator {
                 lastName: this.getRandomElement(this.LAST_NAMES),
                 age: this.getRandomNumber(22, 65),
                 salary: this.getRandomNumber(35000, 150000),
-                department: this.getRandomElement(this.DEPARTMENTS),
-                city: this.getRandomElement(this.CITIES),
-                startDate: this.getRandomDate(new Date(2015, 0, 1), new Date(2024, 11, 31)),
-                isActive: Math.random() > 0.1, // 90% active
-                rating: this.getRandomNumber(1, 5, 1),
-                bonus: this.getRandomNumber(0, 25000),
-                email: this.generateEmail()
+                // department: this.getRandomElement(this.DEPARTMENTS),
+                // city: this.getRandomElement(this.CITIES),
+                // startDate: this.getRandomDate(new Date(2015, 0, 1), new Date(2024, 11, 31)),
+                // isActive: Math.random() > 0.1, // 90% active
+                // rating: this.getRandomNumber(1, 5, 1),
+                // bonus: this.getRandomNumber(0, 25000),
+                // email: this.generateEmail()
             });
         }
         

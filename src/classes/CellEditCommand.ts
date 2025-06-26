@@ -1,4 +1,3 @@
-import Cell from './Cell';
 import { BaseCommand } from './Command';
 import type DataManager from './DataManager';
 
@@ -7,6 +6,8 @@ interface DataType {
     newValue: string;
     row: number;
     col: number;
+    isBold?: boolean;
+    isItalic?: boolean;
 }
 
 /**
@@ -22,7 +23,7 @@ export default class CellEditCommand extends BaseCommand {
 
     // constructor(dataManager: DataManager, row: number, col: number, newValue: string, oldValue: string);
     constructor(dataManager: DataManager,data: Array<DataType>) {
-        super("editing cell");
+        super("editing cell/s");
         this._dataManager = dataManager
         this._data = data
     }
@@ -35,7 +36,14 @@ export default class CellEditCommand extends BaseCommand {
     execute(): boolean {
         try {
             this._data.forEach(cell => {
+                // console.log(cell);
                 this._dataManager.setCellValue(cell.row, cell.col, cell.newValue);
+                if (typeof cell.isBold === "boolean") {
+                    this._dataManager.setBold(cell.row, cell.col, cell.isBold);
+                }
+                if (typeof cell.isItalic === "boolean") {
+                    this._dataManager.setItalic(cell.row, cell.col, cell.isItalic);
+                }
             })
             return true;
         } catch (error) {
@@ -52,7 +60,10 @@ export default class CellEditCommand extends BaseCommand {
         try {
             this._data.forEach(cell => {
                 this._dataManager.setCellValue(cell.row, cell.col, cell.oldValue);
-
+                if (typeof cell.isBold === 'boolean')
+                    this._dataManager.setBold(cell.row, cell.col, !cell.isBold);
+                if (typeof cell.isItalic === "boolean")
+                    this._dataManager.setItalic(cell.row, cell.col, !cell.isItalic);
             })
             // this._dataManager.setCellValue(this._row, this._col, this._oldValue!);
             return true;

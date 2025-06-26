@@ -3,10 +3,9 @@ import Selection from './Selection';
 import Canvas from './Canvas';
 import StatisticsCalculator from './StatisticsCalculator';
 import CommandManager from './CommandManager';
-import CellEditCommand from './CellEditCommand';
-import ResizeCommand from './ResizeCommand';
 import DataGenerator from './DataGenerator';
 import RowsColumnsEditCommand from './RowsColumnEditCommand';
+import CellEditCommand from './CellEditCommand';
 
 /**
  * Main Excel Grid application class
@@ -54,7 +53,7 @@ export default class ExcelGrid {
         this.updateStatistics();
         
         // Load sample data
-        this.loadSampleData();
+        // this.loadSampleData();
     }
 
     /**
@@ -121,13 +120,6 @@ export default class ExcelGrid {
             <div class="toolbar-separator"></div>
 
             <div class="toolbar-group">
-                <input type="text" id="formula" placeholder="Write any Formula" class="toolbar-input">
-                <button class="toolbar-button" id="find-btn">Submit</button>
-            </div>
-
-            <div class="toolbar-separator"></div>
-
-            <div class="toolbar-group">
                 <button class="toolbar-button" id="reset-zoom-btn">🔍 Reset Zoom</button>
             </div>
 
@@ -146,6 +138,13 @@ export default class ExcelGrid {
             <div class="toolbar-group">
                 <input type="text" id="find-input" placeholder="Find value..." class="toolbar-input">
                 <button class="toolbar-button" id="find-btn">🔍 Find</button>
+            </div>
+
+            <div class="toolbar-separator"></div>
+
+            <div class="toolbar-group">
+                <button class="toolbar-button" id="bold"><b>B</b></button>
+                <button class="toolbar-button" id="italic"><i>I</i></button>
             </div>
         `;
         
@@ -305,10 +304,6 @@ export default class ExcelGrid {
                     this._dataManager.getCellsInRange(rowIndex, 0, rowIndex, this._dataManager.columnCount)
                 )
             )) {
-                // Potentially adjust selection if it's affected by the insert
-                if (activeRange && rowIndex <= activeRange.startRow) {
-                    this._selection.selectCell(activeRange.startRow + 1, activeRange.startCol);
-                }
                 this._canvas.redraw();
                 this.updateStatistics();
             } else {
@@ -339,6 +334,56 @@ export default class ExcelGrid {
                 alert('Cannot insert row. Maximum row limit reached or invalid index.');
             }
         });
+
+        document.getElementById('bold')?.addEventListener('click', () => {
+            const cells = this._selection.getSelectedCells();
+            
+            const data  = cells.map(cell => {
+                const x = this._dataManager.getCell(cell.row, cell.col)!;
+                // console.log(x);
+
+                return {
+                    row: cell.row,
+                    col: cell.col,
+                    oldValue: x.value,
+                    newValue: x.value,
+                    isBold: !x.bold,
+                    isItalic: undefined,
+                }
+            })
+            
+            this._commandManager.executeCommand(
+                new CellEditCommand(
+                    this._dataManager,
+                    data
+                )
+            )
+        })
+
+        document.getElementById('italic')?.addEventListener('click', () => {
+            const cells = this._selection.getSelectedCells();
+            
+            const data  = cells.map(cell => {
+                const x = this._dataManager.getCell(cell.row, cell.col)!;
+                // console.log(x);
+
+                return {
+                    row: cell.row,
+                    col: cell.col,
+                    oldValue: x.value,
+                    newValue: x.value,
+                    isItalic: !x.italic,
+                    isBold: undefined,
+                }
+            })
+            
+            this._commandManager.executeCommand(
+                new CellEditCommand(
+                    this._dataManager,
+                    data
+                )
+            )
+        })
 
         // Update button states periodically
         setInterval(() => this.updateToolbarState(), 100);
@@ -399,38 +444,6 @@ export default class ExcelGrid {
                         event.preventDefault();
                         break;
                 }
-            }
-            if (event.key === 'Backspace') {
-                console.log("here");
-                
-                const cells: Array<{
-                    row: number;
-                    col: number;
-                }>  = this._selection.getSelectedCells();                
-                const data = cells.map(cell => ({oldValue: this._dataManager.getCell(cell.row, cell.col)!.value, newValue:  '', ...cell}))
-                this._commandManager.executeCommand(
-                    new CellEditCommand(
-                        this._dataManager,
-                        data,
-                    )
-                )
-                // cells.forEach(cell => {
-                //     // this._dataManager.deleteCell(cell.row, cell.col);
-                //     this._commandManager.executeCommand(
-                //         new CellEditCommand(
-                //             this._dataManager,
-                //             cell.row,
-                //             cell.col,
-                //             '',
-                //             this._dataManager.getCell(cell.row, cell.col)?.value!
-
-                //         )
-                //     )
-                // });
-                
-                this._canvas.redraw();
-                this.updateStatistics();
-                event.preventDefault();
             }
         });
         
@@ -527,12 +540,12 @@ export default class ExcelGrid {
      * Generates and loads sample data
      */
     private generateSampleData(): void {
-        this.showLoading('Generating 50,000 sample records...');
+        this.showLoading('Generating 100000 sample records...');
         
         // Use setTimeout to prevent UI blocking
         setTimeout(() => {
             try {
-                const data = DataGenerator.generateEmployeeData(50000);
+                const data = DataGenerator.generateEmployeeData(100000);
                 this.loadDataArray(data);
                 this.hideLoading();
             } catch (error) {
@@ -603,13 +616,6 @@ export default class ExcelGrid {
             }
             
             processed = end;
-            
-            // Update progress
-            const progress = Math.round((processed / data.length) * 100);
-            const loadingText = this._loadingOverlay.querySelector('.loading-text');
-            if (loadingText) {
-                loadingText.textContent = `Loading data... ${progress}%`;
-            }
             
             if (processed < data.length) {
                 // Process next chunk

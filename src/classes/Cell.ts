@@ -19,13 +19,17 @@ export default class Cell {
     private _selected: boolean;
 
     /** @type {number | null} Font size for this cell, null for default */
-    private _fontSize: number | null;
+    private _fontSize: number = 14;
 
-    /** @type {'left' | 'center' | 'right' | null} Horizontal alignment for this cell */
-    private _horizontalAlignment: 'left' | 'center' | 'right' | null;
+    /** @type {'left' | 'center' | 'right' } Horizontal alignment for this cell */
+    private _horizontalAlignment: 'left' | 'center' | 'right' = "left";
 
-    /** @type {'top' | 'middle' | 'bottom' | null} Vertical alignment for this cell */
-    private _verticalAlignment: 'top' | 'middle' | 'bottom' | null;
+    /** @type {'top' | 'middle' | 'bottom' } Vertical alignment for this cell */
+    private _verticalAlignment: 'top' | 'middle' | 'bottom' = "middle";
+
+    private _isBold: boolean | null = null;
+
+    private _isItalic: boolean | null = null;
 
     /**
      * Initializes a new Cell instance
@@ -40,9 +44,6 @@ export default class Cell {
         this._value = value;
         this._formula = formula || value;
         this._selected = false;
-        this._fontSize = null;
-        this._horizontalAlignment = null; // Default (left)
-        this._verticalAlignment = null;   // Default (middle)
     }
 
     /**
@@ -107,6 +108,22 @@ export default class Cell {
         return this._selected;
     }
 
+    get bold(): boolean {
+        return this._isBold ?? false;
+    }
+
+    set bold(is: boolean) {
+        this._isBold = is;
+    }
+
+    get italic(): boolean {
+        return this._isItalic ?? false;
+    }
+
+    set italic(is: boolean) {
+        this._isItalic = is;
+    }
+
     /**
      * Sets the row index of this cell
      * @param {number} row - The new row index
@@ -135,7 +152,7 @@ export default class Cell {
      * Gets the font size of this cell
      * @returns {number | null} The font size, or null if default
      */
-    get fontSize(): number | null {
+    get fontSize(): number {
         return this._fontSize;
     }
 
@@ -143,7 +160,7 @@ export default class Cell {
      * Sets the font size for this cell
      * @param {number | null} size - The new font size, or null for default
      */
-    set fontSize(size: number | null) {
+    set fontSize(size: number) {
         this._fontSize = size;
     }
 
@@ -151,7 +168,7 @@ export default class Cell {
      * Gets the horizontal alignment of this cell
      * @returns {'left' | 'center' | 'right' | null} The horizontal alignment, or null if default
      */
-    get horizontalAlignment(): 'left' | 'center' | 'right' | null {
+    get horizontalAlignment(): 'left' | 'center' | 'right' {
         return this._horizontalAlignment;
     }
 
@@ -159,7 +176,7 @@ export default class Cell {
      * Sets the horizontal alignment for this cell
      * @param {'left' | 'center' | 'right' | null} alignment - The new horizontal alignment, or null for default
      */
-    set horizontalAlignment(alignment: 'left' | 'center' | 'right' | null) {
+    set horizontalAlignment(alignment: 'left' | 'center' | 'right') {
         this._horizontalAlignment = alignment;
     }
 
@@ -167,7 +184,7 @@ export default class Cell {
      * Gets the vertical alignment of this cell
      * @returns {'top' | 'middle' | 'bottom' | null} The vertical alignment, or null if default
      */
-    get verticalAlignment(): 'top' | 'middle' | 'bottom' | null {
+    get verticalAlignment(): 'top' | 'middle' | 'bottom' {
         return this._verticalAlignment;
     }
 
@@ -175,7 +192,7 @@ export default class Cell {
      * Sets the vertical alignment for this cell
      * @param {'top' | 'middle' | 'bottom' | null} alignment - The new vertical alignment, or null for default
      */
-    set verticalAlignment(alignment: 'top' | 'middle' | 'bottom' | null) {
+    set verticalAlignment(alignment: 'top' | 'middle' | 'bottom') {
         this._verticalAlignment = alignment;
     }
 

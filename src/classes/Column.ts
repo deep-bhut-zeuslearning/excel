@@ -2,6 +2,7 @@
  * Represents a column in the Excel grid
  * Manages column properties like width and selection state
  */
+
 export default class Column {
     /** @type {number} The index of this column (0-based) */
     private _index: number;
