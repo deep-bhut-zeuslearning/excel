@@ -168,10 +168,12 @@ export default class Selection {
     selectRowRange(startRow: number, endRow: number, addToSelection: boolean = false): void {
         const range = new CellRange(startRow, 0);
         range.setRowSelection(startRow, endRow, this._maxCols);
+        this._multiSelect = true;
         
         if (!addToSelection || !this._multiSelect) {
             this.clearSelection();
         }
+        console.log(range);
         
         this._ranges.push(range);
         this._activeRange = range;
@@ -184,10 +186,11 @@ export default class Selection {
      */
     extendSelection(row: number, col: number): void {
         if (!this._activeRange) {
+            console.log("here");
+            
             this.selectCell(row, col);
             return;
-        }
-        
+        }        
         this._activeRange.expandTo(row, col);
     }
 

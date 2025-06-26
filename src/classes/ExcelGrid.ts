@@ -257,9 +257,11 @@ export default class ExcelGrid {
                 )
             )) {
                 // Potentially adjust selection if it's affected by the insert
-                if (activeRange && rowIndex <= activeRange.startRow) {
-                    this._selection.selectCell(activeRange.startRow + 1, activeRange.startCol);
-                }
+                // if (activeRange && rowIndex <= activeRange.startRow) {
+                //     this._selection.selectCell(activeRange.startRow + 1, activeRange.startCol);
+                // }
+                this._selection.clearSelection();
+                this._selection.selectCell(rowIndex ,0);
                 this._canvas.redraw();
                 this.updateStatistics();
             } else {
@@ -281,9 +283,8 @@ export default class ExcelGrid {
                 )
             )) {
                 // Potentially adjust selection
-                if (activeRange && colIndex <= activeRange.startCol) {
-                     this._selection.selectCell(activeRange.startRow, activeRange.startCol + 1);
-                }
+                this._selection.clearSelection();
+                this._selection.selectCell(0, colIndex);
                 this._canvas.redraw();
                 this.updateStatistics();
             } else {
@@ -304,6 +305,10 @@ export default class ExcelGrid {
                     this._dataManager.getCellsInRange(rowIndex, 0, rowIndex, this._dataManager.columnCount)
                 )
             )) {
+                // Potentially adjust selection if it's affected by the insert'
+                if (activeRange && rowIndex <= activeRange.startRow) {
+                    this._selection.selectCell(activeRange.startRow - 1, activeRange.startCol);
+                }
                 this._canvas.redraw();
                 this.updateStatistics();
             } else {

@@ -272,7 +272,11 @@ export default class Canvas {
             if (e.ctrlKey) {
                 // Zooming
                 const zoomFactor = e.deltaY > 0 ? 0.9 : 1.1;
-                this.setZoom(this._zoomLevel * zoomFactor);
+                // Get mouse position relative to canvas
+                const rect = this._canvas.getBoundingClientRect();
+                const mouseViewX = e.clientX - rect.left;
+                const mouseViewY = e.clientY - rect.top;
+                this.setZoom(this._zoomLevel * zoomFactor, mouseViewX, mouseViewY);
             } else {
                 // Forward wheel events to the wrapper for scrolling
                 this._wrapper.scrollLeft += e.deltaX;
@@ -315,28 +319,54 @@ export default class Canvas {
     /**
      * Sets the zoom level and redraws the canvas
      * @param {number} newZoomLevel - The new zoom level
-    */
-    private setZoom(newZoomLevel: number): void {
+     * @param {number} [focalViewX] - Optional X coordinate on the canvas (view pixels) for focal zoom
+     * @param {number} [focalViewY] - Optional Y coordinate on the canvas (view pixels) for focal zoom
+     */
+    private setZoom(newZoomLevel: number, focalViewX?: number, focalViewY?: number): void {
         const oldZoomLevel = this._zoomLevel;
-        this._zoomLevel = Math.max(this._minZoom, Math.min(this._maxZoom, newZoomLevel));
+        const targetZoomLevel = Math.max(this._minZoom, Math.min(this._maxZoom, newZoomLevel));
 
-        if (this._zoomLevel !== oldZoomLevel) {
-            // Adjust scroll position to keep the logical point at the center of the viewport fixed
-            const logicalCenterXInView = this._scrollX + (this._viewportWidth / 2) / oldZoomLevel;
-            const logicalCenterYInView = this._scrollY + (this._viewportHeight / 2) / oldZoomLevel;
+        if (targetZoomLevel === oldZoomLevel) {
+            return;
+        }
+        
+        const previousScrollX = this._scrollX; // Capture scroll before it might be changed by other events
+        const previousScrollY = this._scrollY;
+        const previousViewportWidth = this._viewportWidth; // Capture viewport size before potential changes
+        const previousViewportHeight = this._viewportHeight;
 
-            const newScrollX = logicalCenterXInView - (this._viewportWidth / 2) / this._zoomLevel;
-            const newScrollY = logicalCenterYInView - (this._viewportHeight / 2) / this._zoomLevel;
+        this._zoomLevel = targetZoomLevel; // Set the new zoom level
 
-            this._wrapper.scrollLeft = Math.max(0, newScrollX); // Ensure scroll is not negative
-            this._wrapper.scrollTop = Math.max(0, newScrollY);  // Ensure scroll is not negative
+        let newScrollX: number;
+        let newScrollY: number;
 
-            this.updateCanvasSize(); // May need adjustment if zoom affects canvas element size itself
-            this.setupVirtualScrolling(); // Virtual scroll area depends on zoom
-            this.scheduleRedraw();
-            if (this._cellInput) {
-                this.updateCellInputPosition(); // Update editor position on zoom
-            }
+        if (focalViewX !== undefined && focalViewY !== undefined) {
+            // Zoom to focal point (e.g., mouse cursor)
+            // focalViewX/Y are coordinates on the canvas view, relative to the canvas origin
+            newScrollX = previousScrollX + focalViewX * (1 / oldZoomLevel - 1 / this._zoomLevel);
+            newScrollY = previousScrollY + focalViewY * (1 / oldZoomLevel - 1 / this._zoomLevel);
+        } else {
+            // Zoom to center (default behavior if no focal point provided)
+            const logicalViewCenterX = previousScrollX + (previousViewportWidth / 2) / oldZoomLevel;
+            const logicalViewCenterY = previousScrollY + (previousViewportHeight / 2) / oldZoomLevel;
+            newScrollX = logicalViewCenterX - (previousViewportWidth / 2) / this._zoomLevel;
+            newScrollY = logicalViewCenterY - (previousViewportHeight / 2) / this._zoomLevel;
+        }
+
+        this._wrapper.scrollLeft = Math.max(0, newScrollX);
+        this._wrapper.scrollTop = Math.max(0, newScrollY);
+        
+        // It's important that _scrollX and _scrollY are updated if any drawing logic relies on them
+        // in the same tick. For now, we rely on the scroll event to update them via handleScroll.
+        // If direct synchronous update is needed, uncomment below and ensure no race conditions:
+        // this._scrollX = this._wrapper.scrollLeft;
+        // this._scrollY = this._wrapper.scrollTop;
+
+        this.updateCanvasSize(); // Update viewportWidth/Height, canvas dimensions, DPR scaling
+        this.setupVirtualScrolling(); // Adjust virtual scroll area size
+        this.scheduleRedraw(); // Redraw with new zoom and scroll
+        if (this._cellInput) {
+            this.updateCellInputPosition(); // Update editor position on zoom
         }
     }
 
@@ -487,10 +517,15 @@ export default class Canvas {
             }
         } else if (this._isDraggingRowHeaderSelection && this._dragStartRowIndex !== null) {
             const currentRowIndex = this.getRowAtY(y);
+            
             if (currentRowIndex >= 0) {
                 const startRow = Math.min(this._dragStartRowIndex, currentRowIndex);
                 const endRow = Math.max(this._dragStartRowIndex, currentRowIndex);
+                console.log("startRow", startRow, "endRow", endRow);
+                
                 this._selection.selectRowRange(startRow, endRow);
+                console.log(this._selection.activeRange);
+                
                 this.scheduleRedraw();
             }
         } else if (this._isDraggingColumnHeaderSelection && this._dragStartColIndex !== null) {
@@ -1230,7 +1265,7 @@ export default class Canvas {
 
         for (let row = 0; row < rows.length; row++) {
             const height = rows[row].height; // Unscaled height
-            if (logicalY >= currentY && logicalY < currentY + height) {
+            if (logicalY >= currentY && logicalY < currentY + height) {                
                 return row;
             }
             currentY += height;
