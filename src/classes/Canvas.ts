@@ -499,8 +499,10 @@ export default class Canvas {
         if (this._isDraggingSelection) {
             this._isDraggingSelection = false;
             this._dragStartCell = null;
+            this.startCellEdit(this._selection.activeRange?.startRow!, this._selection.activeRange?.startCol!);
             // Selection is already updated by mouseMove, so no specific action here
-
+        } else {
+            this._canvas.style.cursor = 'cell';
         }
     }
 
