@@ -84,6 +84,18 @@ export default class Canvas {
     /** @type {{ row: number, col: number} | null} Starting cell of a drag selection */
     private _dragStartCell: { row: number, col: number } | null = null;
 
+    /** @type {boolean} Whether a drag selection on a row header is in progress */
+    private _isDraggingRowHeaderSelection: boolean = false;
+
+    /** @type {number | null} Starting row index of a row header drag selection */
+    private _dragStartRowIndex: number | null = null;
+
+    /** @type {boolean} Whether a drag selection on a column header is in progress */
+    private _isDraggingColumnHeaderSelection: boolean = false;
+
+    /** @type {number | null} Starting column index of a column header drag selection */
+    private _dragStartColIndex: number | null = null;
+
     /** @type {number} Current zoom level */
     private _zoomLevel: number = 1;
 
@@ -411,19 +423,26 @@ export default class Canvas {
         }
         
         // Handle header clicks for column/row selection
-        if (x < this._headerWidth && y >= this._headerHeight && !this._isDraggingSelection) {
-            // Row header clicked
-            const rowIndex = this.getRowAtY(y);
-            if (rowIndex >= 0) {
-                this._selection.selectRow(rowIndex);
-                this.scheduleRedraw();
-            }
-        } else if (y < this._headerHeight && x >= this._headerWidth) {
-            // Column header clicked
-            const colIndex = this.getColumnAtX(x);
-            if (colIndex >= 0) {
-                this._selection.selectColumn(colIndex);
-                this.scheduleRedraw();
+        // Ensure not starting a cell drag or resize operation
+        if (!this._isDraggingSelection && !this._resizeState) {
+            if (x < this._headerWidth && y >= this._headerHeight) {
+                // Row header clicked
+                const rowIndex = this.getRowAtY(y);
+                if (rowIndex >= 0) {
+                    this._isDraggingRowHeaderSelection = true;
+                    this._dragStartRowIndex = rowIndex;
+                    this._selection.selectRow(rowIndex); // Select initial row
+                    this.scheduleRedraw();
+                }
+            } else if (y < this._headerHeight && x >= this._headerWidth) {
+                // Column header clicked
+                const colIndex = this.getColumnAtX(x);
+                if (colIndex >= 0) {
+                    this._isDraggingColumnHeaderSelection = true;
+                    this._dragStartColIndex = colIndex;
+                    this._selection.selectColumn(colIndex); // Select initial column
+                    this.scheduleRedraw();
+                }
             }
         }
     }
@@ -467,6 +486,22 @@ export default class Canvas {
                 this._selection.extendSelection(cellCoords.row, cellCoords.col);
                 this.scheduleRedraw();
             }
+        } else if (this._isDraggingRowHeaderSelection && this._dragStartRowIndex !== null) {
+            const currentRowIndex = this.getRowAtY(y);
+            if (currentRowIndex >= 0) {
+                const startRow = Math.min(this._dragStartRowIndex, currentRowIndex);
+                const endRow = Math.max(this._dragStartRowIndex, currentRowIndex);
+                this._selection.selectRowRange(startRow, endRow);
+                this.scheduleRedraw();
+            }
+        } else if (this._isDraggingColumnHeaderSelection && this._dragStartColIndex !== null) {
+            const currentColIndex = this.getColumnAtX(x);
+            if (currentColIndex >= 0) {
+                const startCol = Math.min(this._dragStartColIndex, currentColIndex);
+                const endCol = Math.max(this._dragStartColIndex, currentColIndex);
+                this._selection.selectColumnRange(startCol, endCol);
+                this.scheduleRedraw();
+            }
         } else {
             // Update cursor based on position (not dragging or resizing)
             const resizeHandle = this.getResizeHandle(x, y);
@@ -499,9 +534,19 @@ export default class Canvas {
         if (this._isDraggingSelection) {
             this._isDraggingSelection = false;
             this._dragStartCell = null;
-            this.startCellEdit(this._selection.activeRange?.startRow!, this._selection.activeRange?.startCol!);
-            // Selection is already updated by mouseMove, so no specific action here
-        } else {
+            // Optionally, start editing the primary cell of the selection, or simply finalize.
+            // For now, let's not automatically start editing after a drag selection.
+            // this.startCellEdit(this._selection.activeRange?.startRow!, this._selection.activeRange?.startCol!);
+        } else if (this._isDraggingRowHeaderSelection) {
+            this._isDraggingRowHeaderSelection = false;
+            this._dragStartRowIndex = null;
+        } else if (this._isDraggingColumnHeaderSelection) {
+            this._isDraggingColumnHeaderSelection = false;
+            this._dragStartColIndex = null;
+        }
+
+        // General cursor reset if no other state is active
+        if (!this._resizeState && !this._isDraggingSelection && !this._isDraggingRowHeaderSelection && !this._isDraggingColumnHeaderSelection) {
             this._canvas.style.cursor = 'cell';
         }
     }
