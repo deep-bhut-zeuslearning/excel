@@ -707,8 +707,8 @@ export default class Canvas {
         try {
             this.updateVisibleRange();
             this.clearCanvas();
-            this.drawSelection();
             this.drawGrid();
+            this.drawSelection();
             // this.drawHeaders(); // Called later
             this.drawCells();
             this.drawHeaders(); // Draw headers last to ensure they are on top
@@ -1100,11 +1100,11 @@ export default class Canvas {
         const scaledHeaderHeight = this._headerHeight * this._zoomLevel;
 
         this._ctx.strokeStyle = '#107c41'; // Excel selected cell border color
-        this._ctx.fillStyle = 'rgba(233, 242, 237, 0.5)'; // Excel range selection background color with some transparency
+        this._ctx.fillStyle = 'rgba(233, 242, 237, 0.3)'; // Excel range selection background color with some transparency
 
         const originalLineWidth = this._ctx.lineWidth;
-        this._ctx.lineWidth = Math.max(1, 2 / this._zoomLevel) * dpr; // Ensure border is visible when zoomed out, adjust for DPR
-        const offset = 0.5 / this._zoomLevel * dpr; // Offset for crisp lines
+        this._ctx.lineWidth = Math.max(1, 1.75 / this._zoomLevel) * dpr; // Ensure border is visible when zoomed out, adjust for DPR
+        const offset = 0.5 // Offset for crisp lines
 
         for (const range of this._selection.ranges) {
             let selStartRow = range.startRow;
@@ -1165,7 +1165,7 @@ export default class Canvas {
             }
 
             if (width <= 0 || height <= 0) continue;
-
+            
             // Draw filled background for the visible part of the selection range
             this._ctx.fillRect(
                 Math.round(x) + offset,
@@ -1174,13 +1174,19 @@ export default class Canvas {
                 Math.round(height) - (2 * offset)
             );
             
+            if (this._zoomLevel > 1) {
+                this._ctx.lineWidth = 2;
+            }
+            this._ctx.lineWidth = this._zoomLevel > 1 ? 2 : 1.75 / this._zoomLevel * dpr;
+            
             // Draw single outer border for the visible part of the selection range
             this._ctx.strokeRect(
-                Math.round(x) + offset,
-                Math.round(y) + offset,
-                Math.round(width) - (2 * offset),
-                Math.round(height) - (2 * offset)
+                Math.round(x - 1) + offset,
+                Math.round(y - 1) + offset,
+                Math.round(width + 2) - (offset),
+                Math.round(height + 2 ) - (offset)
             );
+            this._ctx.lineWidth = Math.max(1, 1.75 / this._zoomLevel) * dpr;
         }
         this._ctx.lineWidth = originalLineWidth; // Reset line width
     }
@@ -1320,7 +1326,7 @@ export default class Canvas {
         textarea.style.position = 'absolute';
         textarea.style.left = (canvasRect.left + cellRect.x) + 'px';
         textarea.style.top = (canvasRect.top + cellRect.y) + 'px';
-        textarea.style.border = '2px solid #429468';
+        textarea.style.border = '1px solid #429468';
         textarea.style.width = cellRect.width + 'px';
         textarea.style.height = cellRect.height + 'px';
         textarea.style.fontSize = `${14 * this._zoomLevel}px`;
@@ -1339,7 +1345,7 @@ export default class Canvas {
     
         document.body.appendChild(textarea);
         textarea.focus();
-        textarea.select();
+        // textarea.select();
     
         // Replace old input reference
         this._cellInput = textarea as HTMLTextAreaElement;
