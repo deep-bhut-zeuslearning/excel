@@ -521,10 +521,8 @@ export default class Canvas {
             if (currentRowIndex >= 0) {
                 const startRow = Math.min(this._dragStartRowIndex, currentRowIndex);
                 const endRow = Math.max(this._dragStartRowIndex, currentRowIndex);
-                console.log("startRow", startRow, "endRow", endRow);
                 
                 this._selection.selectRowRange(startRow, endRow);
-                console.log(this._selection.activeRange);
                 
                 this.scheduleRedraw();
             }

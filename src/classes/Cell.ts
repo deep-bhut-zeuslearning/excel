@@ -27,8 +27,10 @@ export default class Cell {
     /** @type {'top' | 'middle' | 'bottom' } Vertical alignment for this cell */
     private _verticalAlignment: 'top' | 'middle' | 'bottom' = "middle";
 
+    /** @type {boolean | null} Whether this cell is bold */
     private _isBold: boolean | null = null;
 
+    /** @type {boolean | null} Whether this cell is italic */
     private _isItalic: boolean | null = null;
 
     /**

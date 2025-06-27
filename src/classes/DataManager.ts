@@ -185,6 +185,100 @@ export default class DataManager {
     }
 
     /**
+     * Converts Excel-style column label (A, B, ..., Z, AA, AB, ...) to zero-based column index
+     * @param label {string} The Excel-style column label
+     * @returns {number} Zero-based column index
+     */
+    labelToIndex(label: string): number {
+        let index = 0;
+
+        for (let i = 0; i < label.length; i++) {
+            const charCode = label.charCodeAt(i) - 64; // 'A' is 65 in ASCII
+            index = index * 26 + charCode;
+        }
+
+        return index - 1;
+    }
+
+
+    parseFormula(formula: string) { 
+        const op = formula.split('(')[0].slice(1).toLocaleLowerCase();
+        const [[startLabel, startValue], [endLabel, endValue]] = formula.split('(')[1].slice(0, -1).split(',').map(a => a.trim()).map(a => ([a[0], a.slice(1)]));
+        console.log(formula.split('(')[1].slice(0, -1).split(',').map(a => ([a[0], a.slice(1)])));
+        
+
+        // console.log(startLabel, startValue, endLabel, endValue);
+        
+        // console.log(this.labelToIndex(startLabel.toUpperCase()), parseInt(startValue), this.labelToIndex(endLabel.toUpperCase()), parseInt(endValue));
+        
+       
+        const cells = this.getCellsInRange(parseInt(startValue) - 1, this.labelToIndex(startLabel.toUpperCase()), parseInt(endValue) - 1, this.labelToIndex(endLabel.toUpperCase()));
+        // console.log(cells);
+        
+        
+
+        if (op === 'sum') {
+            return cells.reduce((total, cell) => {
+                const val = Number(cell.value);
+                return !isNaN(val) ? total + val : total;
+            }, 0);
+        }
+
+        if (op === 'average') {
+            const numericValues = cells
+                .map(cell => Number(cell.value))
+                .filter(val => !isNaN(val));
+            return numericValues.length > 0
+                ? numericValues.reduce((total, val) => total + val, 0) / numericValues.length
+                : 0;
+        }
+
+        if (op === 'count') {
+            return cells.length;
+                // .filter(cell => {
+                //     const val = Number(cell.value);
+                //     return !isNaN(val);
+                // }).length;
+        }
+
+        if (op === 'max') {
+            const numericValues = cells
+                .map(cell => Number(cell.value))
+                .filter(val => !isNaN(val));
+            return numericValues.length > 0 ? Math.max(...numericValues) : 0;
+        }
+
+        if (op === 'min') {
+            const numericValues = cells
+                .map(cell => Number(cell.value))
+                .filter(val => !isNaN(val));
+            return numericValues.length > 0 ? Math.min(...numericValues) : 0;
+        }
+
+        if (op === 'product') {
+            const numericValues = cells
+                .map(cell => Number(cell.value))
+                .filter(val => !isNaN(val));
+            return numericValues.reduce((total, val) => total * val, 1);
+        }
+
+
+        if (op === 'concatenate') {
+            return cells.map(cell => cell.value).join(' ');
+        }
+
+        if (op === 'if') {
+            const [condition, trueValue, falseValue] = formula.split('(')[1].slice(0, -1).split(',');
+            const conditionValue = this.getCellValue(Number(condition.split(':')[0]), Number(condition.split(':')[1]));
+            return conditionValue === trueValue ? trueValue : falseValue;
+        }
+
+        
+        
+        return op;
+     }
+
+    /**
      * Sets the value of a specific cell
      * @param {number} row - Row index
      * @param {number} col - Column index
@@ -206,9 +300,15 @@ export default class DataManager {
         } else {
             let cell = this._cells.get(key);
             if (!cell) {
+                if (value.startsWith('=')) {
+                    value = String(this.parseFormula(value));
+                }
                 cell = new Cell(row, col, value);
                 this._cells.set(key, cell);
             } else {
+                if (value.startsWith('=')) {
+                    value = String(this.parseFormula(value));
+                }
                 cell.value = value;
             }
         }
@@ -379,6 +479,7 @@ export default class DataManager {
                 results.push(cell);
             }
         }
+        
         
         return results;
     }
