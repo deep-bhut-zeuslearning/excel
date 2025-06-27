@@ -182,7 +182,7 @@ html, body {
 /* Cell input overlay */
 .cell-input {
   position: fixed;
-  border: 1px solid #429468; /* Slightly thinner border */
+  /* border: 1px solid #429468; */
   font-family: 'Segoe UI', Arial, sans-serif;
   font-size: 14px; /* Should match canvas font size for cells */
   padding: 0 2px; /* Minimal padding, adjusted to align text */

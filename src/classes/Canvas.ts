@@ -741,8 +741,8 @@ export default class Canvas {
         try {
             this.updateVisibleRange();
             this.clearCanvas();
-            this.drawSelection();
             this.drawGrid();
+            this.drawSelection();
             // this.drawHeaders(); // Called later
             this.drawCells();
             this.drawHeaders(); // Draw headers last to ensure they are on top
@@ -1125,90 +1125,104 @@ export default class Canvas {
     private drawSelection(): void {
         const dpr = window.devicePixelRatio || 1;
         if (!this._selection.hasSelection()) return;
-        
-        const { startRow, endRow, startCol, endCol } = this._visibleRange;
+
+        const visibleRange = this._visibleRange;
         const columns = this._dataManager.columns;
         const rows = this._dataManager.rows;
 
         const scaledHeaderWidth = this._headerWidth * this._zoomLevel;
         const scaledHeaderHeight = this._headerHeight * this._zoomLevel;
 
-        // Excel selected cell border color
-        this._ctx.strokeStyle = '#107c41';
-        // this._ctx.strokeStyle = '#000000';
-        // this._ctx.lineWidth = Math.max(1, 2 * this._zoomLevel); // Keep line width logic
-        // Excel range selection background color
-        this._ctx.fillStyle = 'rgb(233, 242, 237)';
+        this._ctx.strokeStyle = '#107c41'; // Excel selected cell border color
+        this._ctx.fillStyle = 'rgba(233, 242, 237, 0.3)'; // Excel range selection background color with some transparency
 
+        const originalLineWidth = this._ctx.lineWidth;
+        this._ctx.lineWidth = Math.max(1, 1.75 / this._zoomLevel) * dpr; // Ensure border is visible when zoomed out, adjust for DPR
+        const offset = 0.5 // Offset for crisp lines
 
-        this._ctx.lineWidth = 2 / this._zoomLevel * dpr;
-        const offset = 0.5;
+        for (const range of this._selection.ranges) {
+            let selStartRow = range.startRow;
+            let selEndRow = range.endRow;
+            let selStartCol = range.startCol;
+            let selEndCol = range.endCol;
 
-        const selectedCells = this._selection.getSelectedCells();
+            if (range.isRowSelection) {
+                // For row selection, span all columns dataManager knows about
+                selStartCol = 0;
+                selEndCol = this._dataManager.columnCount - 1;
+            } else if (range.isColumnSelection) {
+                // For column selection, span all rows dataManager knows about
+                selStartRow = 0;
+                selEndRow = this._dataManager.rowCount - 1;
+            }
 
-        if (selectedCells.length === 0) return;
+            // Clamp selection to the actual data bounds, just in case range is too large
+            selStartRow = Math.max(0, selStartRow);
+            selEndRow = Math.min(this._dataManager.rowCount - 1, selEndRow);
+            selStartCol = Math.max(0, selStartCol);
+            selEndCol = Math.min(this._dataManager.columnCount - 1, selEndCol);
 
-        let minRow = Infinity, maxRow = -Infinity, minCol = Infinity, maxCol = -Infinity;
-        for (const { row, col } of selectedCells) {
-            minRow = Math.min(minRow, row);
-            maxRow = Math.max(maxRow, row);
-            minCol = Math.min(minCol, col);
-            maxCol = Math.max(maxCol, col);
-        }
+            // Intersect with visible range for drawing efficiency
+            const drawStartRow = Math.max(selStartRow, visibleRange.startRow);
+            const drawEndRow = Math.min(selEndRow, visibleRange.endRow);
+            const drawStartCol = Math.max(selStartCol, visibleRange.startCol);
+            const drawEndCol = Math.min(selEndCol, visibleRange.endCol);
 
-        // Clamp within visible range
-        minRow = Math.max(minRow, startRow);
-        maxRow = Math.min(maxRow, endRow);
-        minCol = Math.max(minCol, startCol);
-        maxCol = Math.min(maxCol, endCol);
+            if (drawStartRow > drawEndRow || drawStartCol > drawEndCol) {
+                continue; // This part of the selection range is not visible
+            }
 
-        // Calculate top-left corner
-        let x = scaledHeaderWidth - this._scrollX +
-            columns.slice(0, minCol).reduce((sum, c) => sum + c.width * this._zoomLevel, 0);
-        let y = scaledHeaderHeight - this._scrollY +
-            rows.slice(0, minRow).reduce((sum, r) => sum + r.height * this._zoomLevel, 0);
+            // Calculate top-left corner's on-screen X position
+            let currentX = scaledHeaderWidth - (this._scrollX * this._zoomLevel);
+            for (let i = 0; i < drawStartCol; i++) {
+                currentX += columns[i].width * this._zoomLevel;
+            }
+            const x = currentX;
 
-        // Calculate total width and height
-        let width = columns.slice(minCol, maxCol + 1).reduce((sum, c) => sum + c.width * this._zoomLevel, 0);
-        let height = rows.slice(minRow, maxRow + 1).reduce((sum, r) => sum + r.height * this._zoomLevel, 0);
+            // Calculate top-left corner's on-screen Y position
+            let currentY = scaledHeaderHeight - (this._scrollY * this._zoomLevel);
+            for (let i = 0; i < drawStartRow; i++) {
+                currentY += rows[i].height * this._zoomLevel;
+            }
+            const y = currentY;
 
-        // Draw filled background
-        this._ctx.fillRect(Math.round(x + offset), Math.round(y + offset), Math.round(width - 2 * offset), Math.round(height - 2 * offset));
-        // Draw single outer border
-        this._ctx.strokeRect(Math.round(x + offset), Math.round(y + offset), Math.round(width - 2 * offset), Math.round(height - 2 * offset));
+            // Calculate total width of the visible part of the selection
+            let width = 0;
+            for (let i = drawStartCol; i <= drawEndCol; i++) {
+                width += columns[i].width * this._zoomLevel;
+            }
 
-        this._ctx.lineWidth = 1; // Reset
+            // Calculate total height of the visible part of the selection
+            let height = 0;
+            for (let i = drawStartRow; i <= drawEndRow; i++) {
+                height += rows[i].height * this._zoomLevel;
+            }
 
-        // for (let r = startRow; r <= endRow && r < rows.length; r++) {
-        //     const rowDef = rows[r];
-        //     const rowHeight = rowDef.height * this._zoomLevel;
-
-        //     if (currentDrawY + rowHeight < 0 || currentDrawY > this._viewportHeight) {
-        //         currentDrawY += rowHeight;
-        //         continue;
-        //     }
+            if (width <= 0 || height <= 0) continue;
             
-        //     let currentDrawX = scaledHeaderWidth - this._scrollX +
-        //         columns.slice(0, startCol).reduce((sum, c) => sum + c.width * this._zoomLevel, 0);
-
-        //     for (let c = startCol; c <= endCol && c < columns.length; c++) {
-        //         const colDef = columns[c];
-        //         const colWidth = colDef.width * this._zoomLevel;
-
-        //         if (currentDrawX + colWidth < 0 || currentDrawX > this._viewportWidth) {
-        //             currentDrawX += colWidth;
-        //             continue;
-        //         }
-                
-        //         if (this._selection.isSelected(r, c)) {
-        //             this._ctx.fillRect(Math.round(currentDrawX), Math.round(currentDrawY), Math.round(colWidth), Math.round(rowHeight));
-        //             this._ctx.strokeRect(Math.round(currentDrawX), Math.round(currentDrawY), Math.round(colWidth), Math.round(rowHeight));
-        //         }
-        //         currentDrawX += colWidth;
-        //     }
-        //     currentDrawY += rowHeight;
-        // }
-        // this._ctx.lineWidth = 1; // Reset
+            // Draw filled background for the visible part of the selection range
+            this._ctx.fillRect(
+                Math.round(x) + offset,
+                Math.round(y) + offset,
+                Math.round(width) - (2 * offset),
+                Math.round(height) - (2 * offset)
+            );
+            
+            if (this._zoomLevel > 1) {
+                this._ctx.lineWidth = 2;
+            }
+            this._ctx.lineWidth = this._zoomLevel > 1 ? 2 : 1.75 / this._zoomLevel * dpr;
+            
+            // Draw single outer border for the visible part of the selection range
+            this._ctx.strokeRect(
+                Math.round(x - 1) + offset,
+                Math.round(y - 1) + offset,
+                Math.round(width + 2) - (offset),
+                Math.round(height + 2 ) - (offset)
+            );
+            this._ctx.lineWidth = Math.max(1, 1.75 / this._zoomLevel) * dpr;
+        }
+        this._ctx.lineWidth = originalLineWidth; // Reset line width
     }
 
     /**
@@ -1346,7 +1360,7 @@ export default class Canvas {
         textarea.style.position = 'absolute';
         textarea.style.left = (canvasRect.left + cellRect.x) + 'px';
         textarea.style.top = (canvasRect.top + cellRect.y) + 'px';
-        textarea.style.border = '2px solid #429468';
+        textarea.style.border = '1px solid #429468';
         textarea.style.width = cellRect.width + 'px';
         textarea.style.height = cellRect.height + 'px';
         textarea.style.fontSize = `${14 * this._zoomLevel}px`;
@@ -1365,7 +1379,7 @@ export default class Canvas {
     
         document.body.appendChild(textarea);
         textarea.focus();
-        textarea.select();
+        // textarea.select();
     
         // Replace old input reference
         this._cellInput = textarea as HTMLTextAreaElement;
