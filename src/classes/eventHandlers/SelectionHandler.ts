@@ -1,15 +1,23 @@
 import type Selection from '../Selection';
-import type { CellCoordinates } from '../../types'; // Assuming you might have a type like this
+
+// Define CellCoordinates directly as it's a simple type used internally
+// This addresses the user feedback that CellCoordinates is not global.
+interface CellCoordinates { row: number; col: number; }
 
 export interface SelectionHandlerDependencies {
     selection: Selection;
-    getCellAtPosition: (viewX: number, viewY: number) => CellCoordinates | null;
-    getRowAtY: (logicalY: number) => number;
-    getColumnAtX: (logicalX: number) => number;
+    // This function is expected to be called with VIEW coordinates.
+    // The implementation (provided by Canvas via InputManager)
+    // will handle any necessary conversions to logical coordinates.
+    getCellAtViewPosition: (viewX: number, viewY: number) => CellCoordinates | null;
+
+    // These functions are also expected to be called with VIEW coordinates.
+    getRowIndexAtViewY: (viewY: number) => number;
+    getColumnIndexAtViewX: (viewX: number) => number;
+
     scheduleRedraw: () => void;
-    headerWidth: number;
-    headerHeight: number;
-    // No direct DataManager or CommandManager needed here as Selection class handles its logic
+    headerWidth: number; // Logical (unzoomed) dimension
+    headerHeight: number; // Logical (unzoomed) dimension
 }
 
 export default class SelectionHandler {
@@ -50,7 +58,7 @@ export default class SelectionHandler {
         const y = event.clientY - canvasRect.top;
 
         // Try cell selection first
-        const cellCoords = this.deps.getCellAtPosition(x, y);
+        const cellCoords = this.deps.getCellAtViewPosition(x, y); // Use getCellAtViewPosition
         if (cellCoords) {
             this._isDraggingCellSelection = true;
             this._dragStartCell = { row: cellCoords.row, col: cellCoords.col };
@@ -96,9 +104,7 @@ export default class SelectionHandler {
             // For this step, we'll replicate the logic structure.
             // The actual coordinate conversion will be sorted during InputManager integration.
 
-            const rowIndex = this.deps.getRowAtY(y); // This call might be problematic if y is viewY
-                                                    // and getRowAtY expects logicalY.
-                                                    // This needs to be resolved in InputManager/Canvas refactor.
+            const rowIndex = this.deps.getRowIndexAtViewY(y); // Use getRowIndexAtViewY
 
             if (rowIndex !== -1 && rowIndex !== null && rowIndex !== undefined) { // Check for valid index
                 this._isDraggingRowHeaderSelection = true;
@@ -110,7 +116,7 @@ export default class SelectionHandler {
         }
         // Column header clicked
         else if (y < this.deps.headerHeight && x >= this.deps.headerWidth) {
-            const colIndex = this.deps.getColumnAtX(x); // Similar coordinate issue as above.
+            const colIndex = this.deps.getColumnIndexAtViewX(x); // Use getColumnIndexAtViewX
             if (colIndex !== -1 && colIndex !== null && colIndex !== undefined) { // Check for valid index
                 this._isDraggingColumnHeaderSelection = true;
                 this._dragStartColIndex = colIndex;
@@ -127,7 +133,7 @@ export default class SelectionHandler {
         const y = event.clientY - canvasRect.top;
 
         if (this._isDraggingCellSelection && this._dragStartCell) {
-            const cellCoords = this.deps.getCellAtPosition(x, y);
+            const cellCoords = this.deps.getCellAtViewPosition(x, y); // Use getCellAtViewPosition
             if (cellCoords && this.deps.selection.activeRange) {
                 // Ensure active range is up-to-date with the drag start cell if it's a new selection
                 // This check might be redundant if mousedown correctly sets the activeRange start.
@@ -148,7 +154,7 @@ export default class SelectionHandler {
                 return true;
             }
         } else if (this._isDraggingRowHeaderSelection && this._dragStartRowIndex !== null) {
-            const currentRowIndex = this.deps.getRowAtY(y); // Coordinate issue
+            const currentRowIndex = this.deps.getRowIndexAtViewY(y); // Use getRowIndexAtViewY
             if (currentRowIndex !== -1 && currentRowIndex !== null && currentRowIndex !== undefined) {
                 const startRow = Math.min(this._dragStartRowIndex, currentRowIndex);
                 const endRow = Math.max(this._dragStartRowIndex, currentRowIndex);
@@ -157,7 +163,7 @@ export default class SelectionHandler {
                 return true;
             }
         } else if (this._isDraggingColumnHeaderSelection && this._dragStartColIndex !== null) {
-            const currentColIndex = this.deps.getColumnAtX(x); // Coordinate issue
+            const currentColIndex = this.deps.getColumnIndexAtViewX(x); // Use getColumnIndexAtViewX
              if (currentColIndex !== -1 && currentColIndex !== null && currentColIndex !== undefined) {
                 const startCol = Math.min(this._dragStartColIndex, currentColIndex);
                 const endCol = Math.max(this._dragStartColIndex, currentColIndex);
