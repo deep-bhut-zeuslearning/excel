@@ -2,10 +2,10 @@ import DataManager from './DataManager';
 import Selection from './Selection';
 import Canvas from './Canvas';
 import StatisticsCalculator from './StatisticsCalculator';
-import CommandManager from './CommandManager';
+import CommandManager from './commands/CommandManager';
 import DataGenerator from './DataGenerator';
-import RowsColumnsEditCommand from './RowsColumnEditCommand';
-import CellEditCommand from './CellEditCommand';
+import RowsColumnsEditCommand from './commands/RowsColumnEditCommand';
+import CellEditCommand from './commands/CellEditCommand';
 
 /**
  * Main Excel Grid application class

@@ -1,6 +1,6 @@
-import Cell from "./Cell";
+import Cell from "../Cell";
 import { BaseCommand } from "./Command";
-import DataManager from "./DataManager";
+import DataManager from "../DataManager";
 
 
 export default class RowsColumnsEditCommand extends BaseCommand {

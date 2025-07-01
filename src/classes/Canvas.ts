@@ -1,8 +1,8 @@
 import type DataManager from './DataManager';
 import type Selection from './Selection';
-import CommandManager from './CommandManager';
-import CellEditCommand from './CellEditCommand';
-import ResizeCommand from './ResizeCommand';
+import CommandManager from './commands/CommandManager';
+import CellEditCommand from './commands/CellEditCommand';
+import ResizeCommand from './commands/ResizeCommand';
 
 /**
  * Manages the HTML5 Canvas rendering for the Excel grid

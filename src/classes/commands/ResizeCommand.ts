@@ -1,6 +1,6 @@
 import { BaseCommand } from './Command';
-import type Column from './Column';
-import type Row from './Row';
+import type Column from '../Column';
+import type Row from '../Row';
 
 /**
  * Command for resizing columns or rows

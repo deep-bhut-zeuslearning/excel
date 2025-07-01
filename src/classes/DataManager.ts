@@ -203,16 +203,23 @@ export default class DataManager {
 
     parseFormula(formula: string) { 
         const op = formula.split('(')[0].slice(1).toLocaleLowerCase();
-        const [[startLabel, startValue], [endLabel, endValue]] = formula.split('(')[1].slice(0, -1).split(',').map(a => a.trim()).map(a => ([a[0], a.slice(1)]));
-        console.log(formula.split('(')[1].slice(0, -1).split(',').map(a => ([a[0], a.slice(1)])));
-        
+        const [[startLabel, startValue], [endLabel, endValue]] = formula.split('(')[1]
+            .slice(0, -1).split(',')
+            .map(a => a.trim())
+            .map(a => ([a[0], a.slice(1)]));
 
         // console.log(startLabel, startValue, endLabel, endValue);
         
         // console.log(this.labelToIndex(startLabel.toUpperCase()), parseInt(startValue), this.labelToIndex(endLabel.toUpperCase()), parseInt(endValue));
         
        
-        const cells = this.getCellsInRange(parseInt(startValue) - 1, this.labelToIndex(startLabel.toUpperCase()), parseInt(endValue) - 1, this.labelToIndex(endLabel.toUpperCase()));
+        const cells = this.getCellsInRange(
+            parseInt(startValue) - 1, 
+            this.labelToIndex(startLabel.toUpperCase()), 
+            parseInt(endValue) - 1, 
+            this.labelToIndex(endLabel.toUpperCase())
+        );
+
         // console.log(cells);
         
         
@@ -366,12 +373,12 @@ export default class DataManager {
     }
 
     /**
-     * Gets all non-empty cells in a specified range
-     * @param {number} startRow - Starting row index
-     * @param {number} startCol - Starting column index
-     * @param {number} endRow - Ending row index
-     * @param {number} endCol - Ending column index
-     * @returns {Cell[]} Array of cells in the range
+     * Retrieves all cells within the specified range.
+     * @param {number} startRow - The starting row index.
+     * @param {number} startCol - The starting column index.
+     * @param {number} endRow - The ending row index.
+     * @param {number} endCol - The ending column index.
+     * @returns {Cell[]} An array of Cell objects within the specified range.
      */
     getCellsInRange(startRow: number, startCol: number, endRow: number, endCol: number): Cell[] {
         const cells: Cell[] = [];
@@ -460,14 +467,14 @@ export default class DataManager {
     }
 
     getCellLabel(row: number, col: number): string {
-        return 'label';
+        return `cell at ${row}, ${col}`;
     }
 
     /**
      * Finds cells containing a specific value
      * @param {string} searchValue - Value to search for
      * @param {boolean} caseSensitive - Whether search should be case sensitive (default: false)
-     * @returns {Cell[]} Array of matching cells
+     * @returns {Cell[50]} Array of matching cells
      */
     findCells(searchValue: string, caseSensitive: boolean = false): Cell[] {
         const results: Cell[] = [];

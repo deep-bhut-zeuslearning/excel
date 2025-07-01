@@ -1,5 +1,5 @@
 import { BaseCommand } from './Command';
-import type DataManager from './DataManager';
+import type DataManager from '../DataManager';
 
 interface DataType {
     oldValue: string;
