@@ -103,10 +103,6 @@ export default class InputManager {
         if (selectionHandled) {
             return; // Selection operation started
         }
-
-        // If no specific handler took over, clear any previous drag states (e.g. from a click outside)
-        // This might be too aggressive, depending on desired UX for clicks outside active areas.
-        // For now, let's assume Canvas will handle general state clearing if needed.
     }
 
     public handleMouseMove(event: MouseEvent): void {

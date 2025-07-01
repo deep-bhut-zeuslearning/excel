@@ -124,7 +124,7 @@ export default class Canvas {
         // Initialize InputManager
         const inputManagerDeps: InputManagerDependencies = {
             dataManager: this._dataManager,
-            selection: this.selection,
+            selection: this._selection,
             commandManager: this._commandManager,
             canvas: this._canvas,
             getZoomLevel: () => this._zoomLevel,
