@@ -2,7 +2,16 @@ import type DataManager from './DataManager';
 import type Selection from './Selection';
 import CommandManager from './commands/CommandManager';
 import CellEditCommand from './commands/CellEditCommand';
-import ResizeCommand from './commands/ResizeCommand';
+// ResizeCommand is now primarily used by ResizeHandler, but Canvas might still need it if it had other resize logic.
+// For now, direct usage by Canvas for resize is removed.
+// import ResizeCommand from './commands/ResizeCommand';
+import InputManager from './InputManager'; // Import the new InputManager
+import type { InputManagerDependencies } from './InputManager'; // For type checking
+
+// Define CellCoordinates and ResizeHandleInfo locally if not imported from a shared types file
+interface CellCoordinates { row: number; col: number; }
+interface ResizeHandleInfo { type: 'column' | 'row'; index: number; }
+
 
 /**
  * Manages the HTML5 Canvas rendering for the Excel grid
@@ -23,11 +32,14 @@ export default class Canvas {
     
     /** @type {HTMLElement} The canvas wrapper element */
     private _wrapper: HTMLElement;
+
+    /** @type {InputManager} Manages mouse input logic */
+    private _inputManager: InputManager;
     
-    /** @type {number} Height of column headers in pixels */
+    /** @type {number} Height of column headers in pixels (logical, unzoomed) */
     private readonly _headerHeight: number = 30;
     
-    /** @type {number} Width of row headers in pixels */
+    /** @type {number} Width of row headers in pixels (logical, unzoomed) */
     private readonly _headerWidth: number = 60;
     
     /** @type {number} Current viewport width */
@@ -36,20 +48,11 @@ export default class Canvas {
     /** @type {number} Current viewport height */
     private _viewportHeight: number = 0;
     
-    /** @type {number} Current horizontal scroll position */
+    /** @type {number} Current horizontal scroll position (logical) */
     private _scrollX: number = 0;
     
-    /** @type {number} Current vertical scroll position */
+    /** @type {number} Current vertical scroll position (logical) */
     private _scrollY: number = 0;
-
-    // /** @type {'left' | 'center' | 'right' | null} Current horizontal alignment */
-    // private _horizontalAlignment: 'left' | 'center' | 'right' | null = null;
-    
-    // /** @type {'top' | 'middle' | 'bottom' | null} Current vertical alignment */
-    // private _verticalAlignment: 'top' | 'middle' | 'bottom' | null = null;
-
-    // /** @type {number} Current font size */
-    // fontSize: number = 14;
     
     /** @type {object} Cache of visible cell range for performance */
     private _visibleRange = {
@@ -68,33 +71,16 @@ export default class Canvas {
     /** @type {HTMLInputElement | null} Active cell input element */
     private _cellInput: HTMLInputElement | HTMLTextAreaElement | null = null;
     
-    /** @type {object | null} Current resize operation state */
-    private _resizeState: {
-        type: 'column' | 'row';
-        index: number;
-        startX: number;
-        startY: number;
-        originalSize: number;
-        newSize?: number;
-    } | null = null;
+    // _resizeState is now managed by ResizeHandler within InputManager
+    // private _resizeState: { ... } | null = null;
 
-    /** @type {boolean} Whether a drag selection is in progress */
-    private _isDraggingSelection: boolean = false;
-
-    /** @type {{ row: number, col: number} | null} Starting cell of a drag selection */
-    private _dragStartCell: { row: number, col: number } | null = null;
-
-    /** @type {boolean} Whether a drag selection on a row header is in progress */
-    private _isDraggingRowHeaderSelection: boolean = false;
-
-    /** @type {number | null} Starting row index of a row header drag selection */
-    private _dragStartRowIndex: number | null = null;
-
-    /** @type {boolean} Whether a drag selection on a column header is in progress */
-    private _isDraggingColumnHeaderSelection: boolean = false;
-
-    /** @type {number | null} Starting column index of a column header drag selection */
-    private _dragStartColIndex: number | null = null;
+    // Drag selection states are now managed by SelectionHandler within InputManager
+    // private _isDraggingSelection: boolean = false;
+    // private _dragStartCell: { row: number, col: number } | null = null;
+    // private _isDraggingRowHeaderSelection: boolean = false;
+    // private _dragStartRowIndex: number | null = null;
+    // private _isDraggingColumnHeaderSelection: boolean = false;
+    // private _dragStartColIndex: number | null = null;
 
     /** @type {number} Current zoom level */
     private _zoomLevel: number = 1;
@@ -124,7 +110,7 @@ export default class Canvas {
     ) {
         this._dataManager = dataManager;
         this._selection = selection;
-        this._commandManager = commandManager;
+        this._commandManager = commandManager; // CommandManager is still needed for non-mouse commands like cell edits via keyboard
         
         // Create canvas element
         this._canvas = document.createElement('canvas');
@@ -134,12 +120,40 @@ export default class Canvas {
         // Set up wrapper
         this._wrapper = container;
         this._wrapper.appendChild(this._canvas);
+
+        // Initialize InputManager
+        const inputManagerDeps: InputManagerDependencies = {
+            dataManager: this._dataManager,
+            selection: this.selection,
+            commandManager: this._commandManager,
+            canvas: this._canvas,
+            getZoomLevel: () => this._zoomLevel,
+            getScrollX: () => this._scrollX,
+            getScrollY: () => this._scrollY,
+            getHeaderWidth: () => this._headerWidth,
+            getHeaderHeight: () => this._headerHeight,
+            getLogicalCellAtViewPosition: (viewX, viewY) => this.getCellAtPosition(viewX, viewY),
+            getResizeHandleAtViewPosition: (viewX, viewY) => this.getResizeHandle(viewX, viewY),
+            // Provide adapter functions for SelectionHandler's coordinate needs
+            getRowIndexAtViewY: (viewY: number) => {
+                // Convert viewY to logicalY before calling original getRowAtY
+                const logicalY = this._scrollY + viewY / this._zoomLevel;
+                return this.getRowAtY(logicalY);
+            },
+            getColumnIndexAtViewX: (viewX: number) => {
+                // Convert viewX to logicalX before calling original getColumnAtX
+                const logicalX = this._scrollX + viewX / this._zoomLevel;
+                return this.getColumnAtX(logicalX);
+            },
+            scheduleRedraw: this.scheduleRedraw.bind(this),
+            setupVirtualScrolling: this.setupVirtualScrolling.bind(this),
+        };
+        this._inputManager = new InputManager(inputManagerDeps);
         
         this.initializeCanvas();
         this.setupEventListeners();
         this.setupVirtualScrolling();
         this.scheduleRedraw();
-
     }
 
     /**
@@ -406,74 +420,8 @@ export default class Canvas {
      * @param {MouseEvent} event - Mouse event
      */
     private handleMouseDown(event: MouseEvent): void {
-        // Convert screen coordinates to canvas coordinates
-        const rect = this._canvas.getBoundingClientRect();
-        const x = event.clientX - rect.left;
-        const y = event.clientY - rect.top;
-        
-        // Check for resize handles first
-        const resizeHandle = this.getResizeHandle(x, y);
-        if (resizeHandle) {
-            this._resizeState = {
-                type: resizeHandle.type,
-                index: resizeHandle.index,
-                startX: x,
-                startY: y,
-                originalSize: resizeHandle.type === 'column' 
-                    ? this._dataManager.columns[resizeHandle.index].width
-                    : this._dataManager.rows[resizeHandle.index].height
-            };
-            this._canvas.style.cursor = resizeHandle.type === 'column' ? 'col-resize' : 'row-resize';
-            return;
-        }
-        
-        // Handle cell selection
-        const cellCoords = this.getCellAtPosition(x, y);
-        if (cellCoords) {
-            this._isDraggingSelection = true;
-            this._dragStartCell = { row: cellCoords.row, col: cellCoords.col };
-
-            if (event.ctrlKey || event.metaKey) {
-                // Multi-select mode - This might need more complex logic for drag,
-                // for now, we'll treat drag as creating a new primary selection.
-                // To add to selection with Ctrl+Drag, we'd need to store multiple drag ranges.
-                this._selection.multiSelect = true; // Enable multi-select
-                // For now, a new drag always replaces or becomes the active selection
-                this._selection.selectCell(cellCoords.row, cellCoords.col, true);
-            } else if (event.shiftKey && this._selection.activeRange) {
-                // Extend selection from active range's start to current cell
-                this._selection.extendSelection(cellCoords.row, cellCoords.col);
-            } else {
-                // Single cell selection / start of new drag range
-                this._selection.selectCell(cellCoords.row, cellCoords.col);
-            }
-            
-            this.scheduleRedraw();
-        }
-        
-        // Handle header clicks for column/row selection
-        // Ensure not starting a cell drag or resize operation
-        if (!this._isDraggingSelection && !this._resizeState) {
-            if (x < this._headerWidth && y >= this._headerHeight) {
-                // Row header clicked
-                const rowIndex = this.getRowAtY(y);
-                if (rowIndex >= 0) {
-                    this._isDraggingRowHeaderSelection = true;
-                    this._dragStartRowIndex = rowIndex;
-                    this._selection.selectRow(rowIndex); // Select initial row
-                    this.scheduleRedraw();
-                }
-            } else if (y < this._headerHeight && x >= this._headerWidth) {
-                // Column header clicked
-                const colIndex = this.getColumnAtX(x);
-                if (colIndex >= 0) {
-                    this._isDraggingColumnHeaderSelection = true;
-                    this._dragStartColIndex = colIndex;
-                    this._selection.selectColumn(colIndex); // Select initial column
-                    this.scheduleRedraw();
-                }
-            }
-        }
+        // Delegate to InputManager
+        this._inputManager.handleMouseDown(event);
     }
 
     /**
@@ -481,68 +429,8 @@ export default class Canvas {
      * @param {MouseEvent} event - Mouse event
      */
     private handleMouseMove(event: MouseEvent): void {
-        const rect = this._canvas.getBoundingClientRect();
-        const x = event.clientX - rect.left;
-        const y = event.clientY - rect.top;
-        
-        if (this._resizeState) {
-            // Handle active resize operation
-            const delta = this._resizeState.type === 'column' 
-                ? x - this._resizeState.startX  // delta in view pixels
-                : y - this._resizeState.startY; // delta in view pixels
-            
-            const logicalDelta = delta / this._zoomLevel; // Convert view delta to logical delta
-            const minLogicalSize = 20; // Minimum logical width/height for a cell
-            const newSize = Math.max(minLogicalSize, this._resizeState.originalSize + logicalDelta);
-            if (this._resizeState.type === 'column') {
-                this._dataManager.columns[this._resizeState.index].width = newSize;
-            } else {
-                this._dataManager.rows[this._resizeState.index].height = newSize;
-            }
-            this._resizeState.newSize = newSize;
-            
-            this.setupVirtualScrolling();
-            this.scheduleRedraw();
-        } else if (this._isDraggingSelection && this._dragStartCell) {
-            const cellCoords = this.getCellAtPosition(x, y);
-            if (cellCoords && this._selection.activeRange) {
-                // Ensure active range is up-to-date with the drag start cell if it's a new selection
-                if (this._selection.activeRange.startRow !== this._dragStartCell.row ||
-                    this._selection.activeRange.startCol !== this._dragStartCell.col) {
-                     // This case should ideally be handled by mousedown creating the initial selection correctly.
-                     // If we are dragging, activeRange should already be set with _dragStartCell as one of its corners.
-                }
-                this._selection.extendSelection(cellCoords.row, cellCoords.col);
-                this.scheduleRedraw();
-            }
-        } else if (this._isDraggingRowHeaderSelection && this._dragStartRowIndex !== null) {
-            const currentRowIndex = this.getRowAtY(y);
-            
-            if (currentRowIndex >= 0) {
-                const startRow = Math.min(this._dragStartRowIndex, currentRowIndex);
-                const endRow = Math.max(this._dragStartRowIndex, currentRowIndex);
-                
-                this._selection.selectRowRange(startRow, endRow);
-                
-                this.scheduleRedraw();
-            }
-        } else if (this._isDraggingColumnHeaderSelection && this._dragStartColIndex !== null) {
-            const currentColIndex = this.getColumnAtX(x);
-            if (currentColIndex >= 0) {
-                const startCol = Math.min(this._dragStartColIndex, currentColIndex);
-                const endCol = Math.max(this._dragStartColIndex, currentColIndex);
-                this._selection.selectColumnRange(startCol, endCol);
-                this.scheduleRedraw();
-            }
-        } else {
-            // Update cursor based on position (not dragging or resizing)
-            const resizeHandle = this.getResizeHandle(x, y);
-            if (resizeHandle) {
-                this._canvas.style.cursor = resizeHandle.type === 'column' ? 'col-resize' : 'row-resize';
-            } else {
-                this._canvas.style.cursor = 'cell';
-            }
-        }
+        // Delegate to InputManager
+        this._inputManager.handleMouseMove(event);
     }
 
     /**
@@ -550,37 +438,11 @@ export default class Canvas {
      * @param {MouseEvent} event - Mouse event
      */
     private handleMouseUp(event: MouseEvent): void {
-        if (this._resizeState) {
-            // console.log(this._resizeState);
-            
-            if (this._resizeState.type === 'column') {
-                const col = this._dataManager.columns[this._resizeState.index];
-                this._commandManager.executeCommand(new ResizeCommand(col, this._resizeState.newSize!, this._resizeState.originalSize));
-            } else {
-                const row = this._dataManager.rows[this._resizeState.index];
-                this._commandManager.executeCommand(new ResizeCommand(row, this._resizeState.newSize!, this._resizeState.originalSize));
-            }
-            this._resizeState = null;
-        }
-
-        if (this._isDraggingSelection) {
-            this._isDraggingSelection = false;
-            this._dragStartCell = null;
-            // Optionally, start editing the primary cell of the selection, or simply finalize.
-            // For now, let's not automatically start editing after a drag selection.
-            // this.startCellEdit(this._selection.activeRange?.startRow!, this._selection.activeRange?.startCol!);
-        } else if (this._isDraggingRowHeaderSelection) {
-            this._isDraggingRowHeaderSelection = false;
-            this._dragStartRowIndex = null;
-        } else if (this._isDraggingColumnHeaderSelection) {
-            this._isDraggingColumnHeaderSelection = false;
-            this._dragStartColIndex = null;
-        }
-
-        // General cursor reset if no other state is active
-        if (!this._resizeState && !this._isDraggingSelection && !this._isDraggingRowHeaderSelection && !this._isDraggingColumnHeaderSelection) {
-            this._canvas.style.cursor = 'cell';
-        }
+        // Delegate to InputManager
+        this._inputManager.handleMouseUp(event);
+        // Note: InputManager and its handlers are responsible for calling scheduleRedraw if needed.
+        // If a redraw is always needed after mouseup, it could be scheduled here,
+        // but it's better to let the specific handlers decide.
     }
 
     /**
