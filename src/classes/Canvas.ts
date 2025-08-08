@@ -108,6 +108,8 @@ export default class Canvas {
     /** @type {CommandManager} handles the exucution of all kind of commands white handling undoa and redo */
     private _commandManager: CommandManager;
 
+    private _autoScrollInterval: number | null = null;
+
 
 
 
@@ -401,6 +403,33 @@ export default class Canvas {
         this.scheduleRedraw();
     }
 
+    // Helper to update selection during drag
+    private updateSelectionDuringDrag(x: number, y: number): void {
+        if (this._isDraggingSelection && this._dragStartCell) {
+            const cellCoords = this.getCellAtPosition(x, y);
+            if (cellCoords && this._selection.activeRange) {
+                this._selection.extendSelection(cellCoords.row, cellCoords.col);
+                this.scheduleRedraw();
+            }
+        } else if (this._isDraggingRowHeaderSelection && this._dragStartRowIndex !== null) {
+            const currentRowIndex = this.getRowAtY(y);
+            if (currentRowIndex >= 0) {
+                const startRow = Math.min(this._dragStartRowIndex, currentRowIndex);
+                const endRow = Math.max(this._dragStartRowIndex, currentRowIndex);
+                this._selection.selectRowRange(startRow, endRow);
+                this.scheduleRedraw();
+            }
+        } else if (this._isDraggingColumnHeaderSelection && this._dragStartColIndex !== null) {
+            const currentColIndex = this.getColumnAtX(x);
+            if (currentColIndex >= 0) {
+                const startCol = Math.min(this._dragStartColIndex, currentColIndex);
+                const endCol = Math.max(this._dragStartColIndex, currentColIndex);
+                this._selection.selectColumnRange(startCol, endCol);
+                this.scheduleRedraw();
+            }
+        }
+    }
+
     /**
      * Handles mouse down events for selection and resizing
      * @param {MouseEvent} event - Mouse event
@@ -484,6 +513,47 @@ export default class Canvas {
         const rect = this._canvas.getBoundingClientRect();
         const x = event.clientX - rect.left;
         const y = event.clientY - rect.top;
+
+        // --- AUTO-SCROLL LOGIC START ---
+        if (this._isDraggingSelection || this._isDraggingRowHeaderSelection || this._isDraggingColumnHeaderSelection) {
+            const edgeThreshold = 30; // px from edge to trigger scroll
+            const scrollSpeed = 30; // px per interval
+
+            // Clear previous interval if any
+            if (this._autoScrollInterval !== null) {
+                clearInterval(this._autoScrollInterval);
+                this._autoScrollInterval = null;
+            }
+
+            // Determine scroll direction
+            let scrollX = 0, scrollY = 0;
+            if (x < edgeThreshold) scrollX = -scrollSpeed;
+            else if (x > this._viewportWidth - edgeThreshold) scrollX = scrollSpeed;
+            if (y < edgeThreshold) scrollY = -scrollSpeed;
+            else if (y > this._viewportHeight - edgeThreshold) scrollY = scrollSpeed;
+
+            if (scrollX !== 0 || scrollY !== 0) {
+                this._autoScrollInterval = window.setInterval(() => {
+                    // Scroll wrapper
+                    this._wrapper.scrollLeft += scrollX;
+                    this._wrapper.scrollTop += scrollY;
+
+                    // Get updated mouse position relative to canvas
+                    const updatedRect = this._canvas.getBoundingClientRect();
+                    const updatedX = event.clientX - updatedRect.left;
+                    const updatedY = event.clientY - updatedRect.top;
+
+                    // Continue selection update
+                    this.updateSelectionDuringDrag(updatedX, updatedY);
+                }, 30);
+            }
+        } else {
+            if (this._autoScrollInterval !== null) {
+                clearInterval(this._autoScrollInterval);
+                this._autoScrollInterval = null;
+            }
+        }
+        // --- AUTO-SCROLL LOGIC END ---
         
         if (this._resizeState) {
             // Handle active resize operation
@@ -550,6 +620,10 @@ export default class Canvas {
      * @param {MouseEvent} event - Mouse event
      */
     private handleMouseUp(event: MouseEvent): void {
+        if (this._autoScrollInterval !== null) {
+            clearInterval(this._autoScrollInterval);
+            this._autoScrollInterval = null;
+        }
         if (this._resizeState) {
             // console.log(this._resizeState);
             
